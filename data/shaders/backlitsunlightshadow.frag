@@ -8,6 +8,10 @@ uniform float split1;
 uniform float split2;
 uniform float splitmax;
 
+uniform vec3 direction;
+uniform vec3 col;
+uniform float sunangle = .54;
+
 in vec2 uv;
 out vec4 FragColor;
 
@@ -46,15 +50,16 @@ void main() {
     float roughness =texture(ntex, uv).z;
     vec3 eyedir = -normalize(xpos.xyz);
 
-    vec3 L = normalize((transpose(InverseViewMatrix) * vec4(sun_direction, 0.)).xyz);
+    // Normalized on the cpu
+    vec3 L = direction;
     float NdotL = clamp(dot(norm, L), 0., 1.);
     vec3 color = texture(ctex, uv).rgb;
 
-    float angle = 3.14 * sun_angle / 180.;
+    float angle = 3.14 * sunangle / 180.;
     vec3 R = reflect(-eyedir, norm);
-    vec3 Lightdir = getMostRepresentativePoint(L, R, angle);
+    vec3 Lightdir = getMostRepresentativePoint(direction, R, angle);
 
-    float reflectance = texture(ntex, uv).a;
+    float metalness = texture(ntex, uv).a;
 
     // Shadows
     float factor;
@@ -68,5 +73,14 @@ void main() {
         factor = getShadowFactor(xpos.xyz, 3);
     else
         factor = 1.;
-    FragColor = vec4(factor * NdotL * sun_col * mix(DiffuseBRDF(norm, eyedir, Lightdir, color, roughness), SpecularBRDF(norm, eyedir, Lightdir, color, roughness), reflectance), .0);
+
+    // Inspired from http://http.developer.nvidia.com/GPUGems3/gpugems3_ch16.html
+    float fEdotL = clamp(dot(Lightdir, eyedir), 0., 1.);
+    float fPowEdotL = pow(fEdotL, 4.);
+
+    float backNdotL = clamp(dot(-norm, Lightdir) * .6 + .4, 0., 1.);
+
+    vec3 Dielectric = NdotL * DiffuseBRDF(norm, eyedir, Lightdir, color, roughness) + NdotL * SpecularBRDF(norm, eyedir, Lightdir, vec3(.04), roughness) + mix(backNdotL, fPowEdotL, .5) * DiffuseBRDF(-norm, eyedir, Lightdir, color, roughness);
+    vec3 Metal = NdotL * SpecularBRDF(norm, eyedir, Lightdir, color, roughness);
+    FragColor = vec4(factor * col * mix(Dielectric, Metal, metalness), 0.);
 }

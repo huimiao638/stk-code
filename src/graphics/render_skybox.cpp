@@ -1,5 +1,6 @@
 #include "graphics/IBL.hpp"
 #include "graphics/irr_driver.hpp"
+#include "graphics/glwrap.hpp"
 #include "graphics/shaders.hpp"
 #include "modes/world.hpp"
 #include "utils/profiler.hpp"
@@ -377,6 +378,7 @@ void IrrDriver::generateDiffuseCoefficients()
 
 void IrrDriver::renderSkybox(const scene::ICameraSceneNode *camera)
 {
+    getFBO(FBO_COLORS).Bind();
     if (SkyboxTextures.empty())
         return;
     glBindVertexArray(MeshShader::SkyboxShader::getInstance()->cubevao);
@@ -395,6 +397,8 @@ void IrrDriver::renderSkybox(const scene::ICameraSceneNode *camera)
     core::matrix4 invtransform;
     transform.getInverse(invtransform);
     glDisable(GL_BLEND);
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
 
     glUseProgram(MeshShader::SkyboxShader::getInstance()->Program);
     MeshShader::SkyboxShader::getInstance()->setUniforms(transform);

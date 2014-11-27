@@ -29,7 +29,7 @@ static void renderPointLights(unsigned count)
     glBindBuffer(GL_ARRAY_BUFFER, LightShader::PointLightShader::getInstance()->vbo);
     glBufferSubData(GL_ARRAY_BUFFER, 0, count * sizeof(LightShader::PointLightInfo), PointLightsInfo);
 
-    LightShader::PointLightShader::getInstance()->SetTextureUnits(irr_driver->getRenderTargetTexture(RTT_NORMAL_AND_DEPTH), irr_driver->getDepthStencilTexture());
+    LightShader::PointLightShader::getInstance()->SetTextureUnits(irr_driver->getRenderTargetTexture(RTT_NORMAL_AND_DEPTH), irr_driver->getDepthStencilTexture(), irr_driver->getRenderTargetTexture(RTT_BASE_COLOR));
     LightShader::PointLightShader::getInstance()->setUniforms();
 
     glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, count);
@@ -141,17 +141,18 @@ void IrrDriver::renderLights(unsigned pointlightcount, bool hasShadow)
 
     for (unsigned i = 0; i < sun_ortho_matrix.size(); i++)
         sun_ortho_matrix[i] *= getInvViewMatrix();
-    m_rtts->getFBO(FBO_COMBINED_DIFFUSE_SPECULAR).Bind();
-    glClear(GL_COLOR_BUFFER_BIT);
 
-    m_rtts->getFBO(FBO_DIFFUSE).Bind();
+    m_rtts->getFBO(FBO_COLORS).Bind();
+    glClearColor(0., 0., 0., 0.);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glDepthMask(GL_FALSE);
+
     if (irr_driver->usesGI() && hasShadow)
     {
         ScopedGPUTimer timer(irr_driver->getGPUTimer(Q_GI));
         m_post_processing->renderGI(rh_matrix, rh_extend, m_rtts->getRH().getRTT()[0], m_rtts->getRH().getRTT()[1], m_rtts->getRH().getRTT()[2]);
     }
 
-    m_rtts->getFBO(FBO_COMBINED_DIFFUSE_SPECULAR).Bind();
 
     {
         ScopedGPUTimer timer(irr_driver->getGPUTimer(Q_ENVMAP));
@@ -163,7 +164,15 @@ void IrrDriver::renderLights(unsigned pointlightcount, bool hasShadow)
     {
         ScopedGPUTimer timer(irr_driver->getGPUTimer(Q_SUN));
         if (World::getWorld() && irr_driver->usesShadows() && hasShadow)
+        {
+            glEnable(GL_STENCIL_TEST);
+            glStencilFunc(GL_EQUAL, 0, 0xFF);
+            glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
             m_post_processing->renderShadowedSunlight(irr_driver->getSunDirection(), irr_driver->getSunColor(), sun_ortho_matrix, m_rtts->getShadowFBO().getRTT()[0]);
+            glStencilFunc(GL_EQUAL, 1, 0xFF);
+            m_post_processing->renderBacklitShadowedSunlight(irr_driver->getSunDirection(), irr_driver->getSunColor(), sun_ortho_matrix, m_rtts->getShadowFBO().getRTT()[0]);
+            glDisable(GL_STENCIL_TEST);
+        }
         else
             m_post_processing->renderSunlight(irr_driver->getSunDirection(), irr_driver->getSunColor());
     }
@@ -183,6 +192,8 @@ void IrrDriver::renderSSAO()
     FrameBuffer::Blit(m_rtts->getFBO(FBO_SSAO), m_rtts->getFBO(FBO_HALF1_R), GL_COLOR_BUFFER_BIT, GL_LINEAR);
     m_post_processing->renderGaussian17TapBlur(irr_driver->getFBO(FBO_HALF1_R), irr_driver->getFBO(FBO_HALF2_R));
 
+    getFBO(FBO_COLORS).Bind();
+    m_post_processing->applySSAO(getRenderTargetTexture(RTT_HALF1_R));
 }
 
 void IrrDriver::renderLightsScatter(unsigned pointlightcount)
