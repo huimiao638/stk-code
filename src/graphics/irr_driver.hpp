@@ -260,6 +260,7 @@ private:
 public:
     GLuint SkyboxCubeMap;
     GLuint SkyboxSpecularProbe;
+    GLuint DFG_LUT;
     /** A simple class to store video resolutions. */
     class VideoMode
     {
