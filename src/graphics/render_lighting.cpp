@@ -169,6 +169,8 @@ void IrrDriver::renderLights(unsigned pointlightcount, bool hasShadow)
             glStencilFunc(GL_EQUAL, 0, 0xFF);
             glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
             m_post_processing->renderShadowedSunlight(irr_driver->getSunDirection(), irr_driver->getSunColor(), sun_ortho_matrix, m_rtts->getShadowFBO().getRTT()[0]);
+            glStencilFunc(GL_EQUAL, 2, 0xFF);
+            m_post_processing->renderShadowedSunlight(irr_driver->getSunDirection(), irr_driver->getSunColor(), sun_ortho_matrix, m_rtts->getShadowFBO().getRTT()[0]);
             glStencilFunc(GL_EQUAL, 1, 0xFF);
             m_post_processing->renderBacklitShadowedSunlight(irr_driver->getSunDirection(), irr_driver->getSunColor(), sun_ortho_matrix, m_rtts->getShadowFBO().getRTT()[0]);
             glDisable(GL_STENCIL_TEST);
