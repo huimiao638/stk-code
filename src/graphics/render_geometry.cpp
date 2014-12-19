@@ -478,6 +478,7 @@ void IrrDriver::renderPostLightFixups()
 {
     // Render unlit material
    {
+       glEnable(GL_DEPTH_TEST);
        auto &meshes = UnlitMat::List::getInstance()->SolidPass;
        glUseProgram(MeshShader::ObjectUnlitShader::getInstance()->Program);
        if (irr_driver->hasARB_base_instance())
