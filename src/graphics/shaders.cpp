@@ -1602,6 +1602,15 @@ namespace FullScreenShader
         AssignUniforms("split0", "split1", "split2", "splitmax", "direction", "col");
     }
 
+    SubsurfaceScatteringCompositionShader::SubsurfaceScatteringCompositionShader()
+    {
+        Program = LoadProgram(OBJECT,
+            GL_VERTEX_SHADER, file_manager->getAsset("shaders/screenquad.vert").c_str(),
+            GL_FRAGMENT_SHADER, file_manager->getAsset("shaders/subsurface_composite.frag").c_str());
+        AssignSamplerNames(Program, 0, "subsurface_layer0", 1, "subsurface_layer1");
+        AssignUniforms();
+    }
+
     RadianceHintsConstructionShader::RadianceHintsConstructionShader()
     {
         if (irr_driver->hasVSLayerExtension())

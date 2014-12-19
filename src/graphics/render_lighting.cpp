@@ -180,6 +180,23 @@ void IrrDriver::renderLights(unsigned pointlightcount, bool hasShadow)
         ScopedGPUTimer timer(irr_driver->getGPUTimer(Q_POINTLIGHTS));
         renderPointLights(MIN2(pointlightcount, MAXLIGHT));
     }
+
+    // Subsurface scattering
+    {
+        // Layer 0
+        FrameBuffer::Blit(getFBO(FBO_COLORS), getFBO(FBO_SUBSURFACE_LAYER0));
+        // Layer 1
+        FrameBuffer::Blit(getFBO(FBO_COLORS), getFBO(FBO_SUBSURFACE_LAYER1));
+        m_post_processing->renderGaussian6Blur(getFBO(FBO_SUBSURFACE_LAYER1), getFBO(FBO_TMP1_WITH_DS), 3., 3.);
+
+        glEnable(GL_STENCIL_TEST);
+        glStencilFunc(GL_EQUAL, 2, 0xFF);
+        glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+        getFBO(FBO_COLORS).Bind();
+        FullScreenShader::SubsurfaceScatteringCompositionShader::getInstance()->SetTextureUnits(getRenderTargetTexture(RTT_SUBSURFACE_LAYER0), getRenderTargetTexture(RTT_SUBSURFACE_LAYER1));
+        DrawFullScreenEffect<FullScreenShader::SubsurfaceScatteringCompositionShader>();
+        glDisable(GL_STENCIL_TEST);
+    }
 }
 
 void IrrDriver::renderSSAO()
