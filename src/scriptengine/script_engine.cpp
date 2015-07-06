@@ -21,6 +21,7 @@
 #include "io/file_manager.hpp"
 #include "karts/kart.hpp"
 #include "modes/world.hpp"
+#include "scriptengine/script_audio.hpp"
 #include "scriptengine/script_challenges.hpp"
 #include "scriptengine/script_kart.hpp"
 #include "scriptengine/script_engine.hpp"
@@ -336,7 +337,8 @@ namespace Scripting
         Scripting::Utils::registerScriptFunctions(m_engine);
         Scripting::GUI::registerScriptFunctions(m_engine);
         Scripting::GUI::registerScriptEnums(m_engine);
-    
+        Scripting::Audio::registerScriptFunctions(m_engine);
+
         // It is possible to register the functions, properties, and types in 
         // configuration groups as well. When compiling the scripts it can then
         // be defined which configuration groups should be available for that
@@ -364,7 +366,7 @@ namespace Scripting
         // the script engine will treat them all as if they were one. The script
         // section name, will allow us to localize any errors in the script code.
         asIScriptModule *mod = m_engine->GetModule(MODULE_ID_MAIN_SCRIPT_FILE,
-            clear_previous ? asGM_ALWAYS_CREATE : asGM_ONLY_IF_EXISTS);
+            clear_previous ? asGM_ALWAYS_CREATE : asGM_CREATE_IF_NOT_EXISTS);
         r = mod->AddScriptSection("script", &script[0], script.size());
         if (r < 0)
         {
@@ -404,5 +406,28 @@ namespace Scripting
         // each other.
 
         return true;
+    }
+
+    //-----------------------------------------------------------------------------
+
+    void ScriptEngine::addPendingTimeout(double time, const std::string& callback_name)
+    {
+        m_pending_timeouts.push_back(PendingTimeout(time, callback_name));
+    }
+
+    //-----------------------------------------------------------------------------
+
+    void ScriptEngine::update(double dt)
+    {
+        for (int i = m_pending_timeouts.size() - 1; i >= 0; i--)
+        {
+            PendingTimeout& curr = m_pending_timeouts[i];
+            curr.m_time -= dt;
+            if (curr.m_time <= 0.0)
+            {
+                runFunction("void " + curr.m_callback_name + "()");
+                m_pending_timeouts.erase(m_pending_timeouts.begin() + i);
+            }
+        }
     }
 }

@@ -766,6 +766,8 @@ int handleCmdLine()
            UserConfigParams::m_camera_debug=2;
         if(CommandLine::has("--camera-debug"))
             UserConfigParams::m_camera_debug=1;
+        if(CommandLine::has("--camera-kart-debug"))
+            UserConfigParams::m_camera_debug=4;
         if(CommandLine::has("--physics-debug"))
             UserConfigParams::m_physics_debug=1;
         if(CommandLine::has("--check-debug"))
@@ -1228,7 +1230,7 @@ void askForInternetPermission()
         "'User Interface', and edit \"Connect to the "
         "Internet\" and \"Send anonymous HW statistics\")."),
         MessageDialog::MESSAGE_DIALOG_YESNO,
-        new ConfirmServer(), true, true);
+        new ConfirmServer(), true, true, 0.7f, 0.7f);
     GUIEngine::DialogQueue::get()->pushDialog(dialog, false);
 }   // askForInternetPermission
 

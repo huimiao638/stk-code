@@ -1,6 +1,6 @@
 //
 //  SuperTuxKart - a fun racing game with go-kart
-//  Copyright (C) 2013-2015 Lauri Kasanen
+//  Copyright (C) 2014-2015  SuperTuxKart Team
 //
 //  This program is free software; you can redistribute it and/or
 //  modify it under the terms of the GNU General Public License
@@ -16,26 +16,18 @@
 //  along with this program; if not, write to the Free Software
 //  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
-#ifndef HEADER_SUN_HPP
-#define HEADER_SUN_HPP
+#ifndef HEADER_SCRIPT_AUDIO_HPP
+#define HEADER_SCRIPT_AUDIO_HPP
 
-#include "graphics/light.hpp"
-#include "utils/cpp2011.hpp"
+#include <angelscript.h>
 
-class ScreenQuad;
+#include <string>
 
-// The actual sun node
-class SunNode: public LightNode
+namespace Scripting
 {
-
-public:
-    SunNode(scene::ISceneManager* mgr, scene::ISceneNode* parent, 
-            float r, float g, float b);
-    virtual ~SunNode();
-
-    virtual void render() OVERRIDE;
-    virtual bool isPointLight() OVERRIDE { return false; }
-
-};   // SunNode
-
+    namespace Audio
+    {
+        void registerScriptFunctions(asIScriptEngine *engine);
+    }
+}
 #endif

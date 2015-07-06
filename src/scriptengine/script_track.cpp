@@ -195,11 +195,16 @@ namespace Scripting
             * @{
             */
 
-            // TODO: adjust all signatures to type "void*" parameters if possible
             /** Stop particle emission */
             void stop(/** \cond DOXYGEN_IGNORE */ void *memory /** \endcond */)
             {
                 ((TrackObjectPresentationParticles*)memory)->stop();
+            }
+
+            /** Stop particle emission */
+            void stopIn(float delay, /** \cond DOXYGEN_IGNORE */ void *memory /** \endcond */)
+            {
+                ((TrackObjectPresentationParticles*)memory)->stopIn(delay);
             }
 
             /** Play the specified sound once */
@@ -243,7 +248,8 @@ namespace Scripting
             r = engine->RegisterObjectMethod("TrackObject", "Mesh@ getMesh()", asMETHOD(TrackObject, getMesh), asCALL_THISCALL); assert(r >= 0);
             r = engine->RegisterObjectMethod("TrackObject", "ParticleEmitter@ getParticleEmitter()", asMETHOD(TrackObject, getParticleEmitter), asCALL_THISCALL); assert(r >= 0);
             r = engine->RegisterObjectMethod("TrackObject", "Animator@ getIPOAnimator()", asMETHOD(TrackObject, getIPOAnimator), asCALL_THISCALL); assert(r >= 0);
-            // TODO: add move method
+            r = engine->RegisterObjectMethod("TrackObject", "void moveTo(const Vec3 &in, bool)", asMETHOD(TrackObject, moveTo), asCALL_THISCALL); assert(r >= 0);
+
 
             // PhysicalObject
             r = engine->RegisterObjectMethod("PhysicalObject", "bool isFlattenKartObject()", asMETHOD(PhysicalObject, isFlattenKartObject), asCALL_THISCALL); assert(r >= 0);
@@ -258,6 +264,7 @@ namespace Scripting
 
             // Particle Emitter
             r = engine->RegisterObjectMethod("ParticleEmitter", "void stop()", asFUNCTION(ParticleEmitter::stop), asCALL_CDECL_OBJLAST); assert(r >= 0);
+            r = engine->RegisterObjectMethod("ParticleEmitter", "void stopIn(float)", asFUNCTION(ParticleEmitter::stopIn), asCALL_CDECL_OBJLAST); assert(r >= 0);
             r = engine->RegisterObjectMethod("ParticleEmitter", "void setEmissionRate(float)", asFUNCTION(ParticleEmitter::setEmissionRate), asCALL_CDECL_OBJLAST); assert(r >= 0);
 
             // Sound Effect

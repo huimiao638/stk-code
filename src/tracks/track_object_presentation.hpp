@@ -174,11 +174,14 @@ public:
  */
 class TrackObjectPresentationLibraryNode : public TrackObjectPresentationSceneNode
 {
+    TrackObject* m_parent;
 public:
     TrackObjectPresentationLibraryNode(TrackObject* parent,
         const XMLNode& xml_node,
         ModelDefinitionLoader& model_def_loader);
     virtual ~TrackObjectPresentationLibraryNode();
+    void move(const core::vector3df& xyz, const core::vector3df& hpr,
+        const core::vector3df& scale, bool isAbsoluteCoord, bool moveChildrenPhysicalBodies);
 };   // TrackObjectPresentationLibraryNode
 
 // ============================================================================
@@ -310,6 +313,8 @@ private:
     ParticleEmitter* m_emitter;
     LODNode* m_lod_emitter_node;
     std::string m_trigger_condition;
+    bool m_delayed_stop;
+    double m_delayed_stop_time;
 
 public:
     TrackObjectPresentationParticles(const XMLNode& xml_node,
@@ -319,6 +324,7 @@ public:
     virtual void update(float dt) OVERRIDE;
     void triggerParticles();
     void stop();
+    void stopIn(double delay);
     void setRate(float rate);
     // ------------------------------------------------------------------------
     /** Returns the trigger condition for this object. */

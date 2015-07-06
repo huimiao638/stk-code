@@ -23,6 +23,7 @@
 
 #include "items/item.hpp"
 #include "physics/physical_object.hpp"
+#include "scriptengine/scriptvec3.hpp"
 #include "tracks/track_object_presentation.hpp"
 #include "utils/cpp2011.hpp"
 #include "utils/no_copy.hpp"
@@ -93,6 +94,9 @@ protected:
     TrackObject*                   m_parent_library;
     
     std::vector<TrackObject*>      m_movable_children;
+    std::vector<TrackObject*>      m_children;
+
+    bool                           m_initially_visible;
 
     void init(const XMLNode &xml_node, scene::ISceneNode* parent,
         ModelDefinitionLoader& model_def_loader,
@@ -210,9 +214,13 @@ public:
     PhysicalObject* getPhysics() { return m_physical_object; }
     /** Hide or show the object */
     void setEnabled(bool mode);
+
+    void moveTo(const Scripting::SimpleVec3* pos, bool isAbsoluteCoord);
     /* @} */
     /* @} */
     /* @} */
+
+    void resetEnabled();
     // ------------------------------------------------------------------------
     ThreeDAnimation* getAnimator() { return m_animator; }
     // ------------------------------------------------------------------------
@@ -227,7 +235,14 @@ public:
       * to still preserve the parent-child relationship
       */
     void addMovableChild(TrackObject* child);
-
+    // ------------------------------------------------------------------------
+    void addChild(TrackObject* child);
+    // ------------------------------------------------------------------------
+    std::vector<TrackObject*>& getMovableChildren() { return m_movable_children; }
+    // ------------------------------------------------------------------------
+    std::vector<TrackObject*>& getChildren() { return m_children; }
+    // ------------------------------------------------------------------------
+    void movePhysicalBodyToGraphicalNode(const core::vector3df& xyz, const core::vector3df& hpr);
     LEAK_CHECK()
 };   // TrackObject
 

@@ -16,34 +16,44 @@
 //  along with this program; if not, write to the Free Software
 //  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
-#ifndef HEADER_SCRIPTVEC3_HPP
-#define HEADER_SCRIPTVEC3_HPP
+#include "script_audio.hpp"
+#include "audio/sfx_manager.hpp"
 
 #include <angelscript.h>
+#include <assert.h>
 
+/** \cond DOXYGEN_IGNORE */
 namespace Scripting
 {
-    void RegisterVec3(asIScriptEngine *engine);
+    /** \endcond */
 
-    struct SimpleVec3
+    namespace Audio
     {
-        float x;
-        float y;
-        float z;
+        /** \addtogroup Scripting
+        * @{
+        */
+        /** \addtogroup Scripting_Audio Audio
+        * @{
+        */
 
-        float getX() const { return x; }
-        float getY() const { return y; }
-        float getZ() const { return z; }
+        /** Plays a sound by name */
 
-        float getLength() const
+        void playSound(const std::string* sound_name)
         {
-            return sqrt(x*x + y*y + z*z);
+            SFXManager::get()->quickSound(*sound_name);
         }
 
-        SimpleVec3() : x(0), y(0), z(0) { }
-        SimpleVec3(float p_x, float p_y, float p_z) : x(p_x), y(p_y), z(p_z) { }
-        SimpleVec3(const SimpleVec3& other) : x(other.x), y(other.y), z(other.z) { }
-        ~SimpleVec3() { }
-    };
+        /** @}*/
+        /** @}*/
+
+        void registerScriptFunctions(asIScriptEngine *engine)
+        {
+            int r; // of type asERetCodes
+            engine->SetDefaultNamespace("Audio");
+            r = engine->RegisterGlobalFunction("void playSound(const string &in)", asFUNCTION(playSound), asCALL_CDECL); assert(r >= 0);
+        }
+    }
+
+/** \cond DOXYGEN_IGNORE */
 }
-#endif
+/** \endcond */

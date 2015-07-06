@@ -197,7 +197,7 @@ TrackObjectPresentationLibraryNode::TrackObjectPresentationLibraryNode(
             lib_path = track->getTrackFile("library/" + name);
             libroot = file_manager->createXMLTree(local_lib_node_path);
             if (track != NULL)
-                World::getWorld()->getScriptEngine()->loadScript(lib_script_file_path, false);
+                World::getWorld()->getScriptEngine()->loadScript(local_script_file_path, false);
         }
         else if (file_manager->fileExists(lib_node_path))
         {
@@ -254,6 +254,7 @@ TrackObjectPresentationLibraryNode::TrackObjectPresentationLibraryNode(
     assert(libroot != NULL);
     World::getWorld()->getTrack()->loadObjects(libroot, lib_path, model_def_loader,
         create_lod_definitions, m_node, parent);
+    m_parent = parent;
 }   // TrackObjectPresentationLibraryNode
 
 // ----------------------------------------------------------------------------
@@ -261,7 +262,24 @@ TrackObjectPresentationLibraryNode::~TrackObjectPresentationLibraryNode()
 {
     irr_driver->removeNode(m_node);
 }   // TrackObjectPresentationLibraryNode
+// ----------------------------------------------------------------------------
+void TrackObjectPresentationLibraryNode::move(const core::vector3df& xyz, const core::vector3df& hpr,
+    const core::vector3df& scale, bool isAbsoluteCoord, bool moveChildrenPhysicalBodies)
+{
+    TrackObjectPresentationSceneNode::move(xyz, hpr, scale, isAbsoluteCoord);
 
+    if (moveChildrenPhysicalBodies)
+    {
+        for (TrackObject* obj : m_parent->getChildren())
+        {
+            obj->reset();
+            if (obj->getPhysicalObject() != NULL)
+            {
+                obj->movePhysicalBodyToGraphicalNode(obj->getAbsolutePosition(), obj->getRotation());
+            }
+        }
+    }
+}
 // ----------------------------------------------------------------------------
 TrackObjectPresentationLOD::TrackObjectPresentationLOD(const XMLNode& xml_node,
                                        scene::ISceneNode* parent,
@@ -766,6 +784,12 @@ TrackObjectPresentationParticles::TrackObjectPresentationParticles(
     xml_node.get("clip_distance", &clip_distance);
     xml_node.get("conditions",    &m_trigger_condition);
 
+    bool auto_emit = true;
+    xml_node.get("auto_emit", &auto_emit);
+
+    m_delayed_stop = false;
+    m_delayed_stop_time = 0.0;
+
     try
     {
         ParticleKind* kind = ParticleKindManager::get()->getParticles(path);
@@ -792,7 +816,7 @@ TrackObjectPresentationParticles::TrackObjectPresentationParticles(
             m_emitter = emitter;
         }
 
-        if (m_trigger_condition.size() > 0)
+        if (m_trigger_condition.size() > 0 || !auto_emit)
         {
             m_emitter->setCreationRateAbsolute(0.0f);
         }
@@ -825,6 +849,16 @@ void TrackObjectPresentationParticles::update(float dt)
     {
         m_emitter->update(dt);
     }
+
+    if (m_delayed_stop)
+    {
+        if (m_delayed_stop_time < 0.0f)
+        {
+            m_delayed_stop = false;
+            stop();
+        }
+        m_delayed_stop_time -= dt;
+    }
 }   // update
 
 // ----------------------------------------------------------------------------
@@ -844,6 +878,12 @@ void TrackObjectPresentationParticles::stop()
         m_emitter->setCreationRateAbsolute(0.0f);
         m_emitter->clearParticles();
     }
+}
+// ----------------------------------------------------------------------------
+void TrackObjectPresentationParticles::stopIn(double delay)
+{
+    m_delayed_stop = true;
+    m_delayed_stop_time = delay;
 }
 // ----------------------------------------------------------------------------
 void TrackObjectPresentationParticles::setRate(float rate)

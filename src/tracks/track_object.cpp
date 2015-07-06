@@ -72,6 +72,7 @@ TrackObject::TrackObject(const core::vector3df& xyz, const core::vector3df& hpr,
     m_is_driveable    = false;
     m_soccer_ball     = false;
     m_garage          = false;
+    m_initially_visible = false;
     m_distance        = 0;
     m_type            = "";
 
@@ -100,6 +101,7 @@ void TrackObject::init(const XMLNode &xml_node, scene::ISceneNode* parent,
     m_init_hpr   = core::vector3df(0,0,0);
     m_init_scale = core::vector3df(1,1,1);
     m_enabled    = true;
+    m_initially_visible = false;
     m_presentation = NULL;
     m_animator = NULL;
     m_parent_library = parent_library;
@@ -133,6 +135,26 @@ void TrackObject::init(const XMLNode &xml_node, scene::ISceneNode* parent,
 
     m_type = type;
 
+    m_initially_visible = true;
+    std::string condition;
+    xml_node.get("if", &condition);
+    if (condition == "false")
+    {
+        m_initially_visible = false;
+    }
+    else if (condition.size() > 0)
+    {
+        unsigned char result = -1;
+        Scripting::ScriptEngine* script_engine = World::getWorld()->getScriptEngine();
+        std::function<void(asIScriptContext*)> null_callback;
+        script_engine->runFunction("bool " + condition + "()", null_callback,
+            [&](asIScriptContext* ctx) { result = ctx->GetReturnByte(); });
+
+        if (result == 0)
+            m_initially_visible = false;
+    }
+    if (!m_initially_visible)
+        setEnabled(false);
 
     if (xml_node.getName() == "particle-emitter")
     {
@@ -180,7 +202,7 @@ void TrackObject::init(const XMLNode &xml_node, scene::ISceneNode* parent,
     else
     {
         scene::ISceneNode *glownode = NULL;
-
+        bool is_movable = false;
         if (lod_instance)
         {
             m_type = "lod";
@@ -222,11 +244,7 @@ void TrackObject::init(const XMLNode &xml_node, scene::ISceneNode* parent,
                 node->setPosition(absTransform.getTranslation());
                 node->setRotation(absTransform.getRotationDegrees());
                 node->setScale(absTransform.getScale());
-
-                if (parent_library != NULL)
-                {
-                    parent_library->addMovableChild(this);
-                }
+                is_movable = true;
             }
 
             glownode = node;
@@ -241,6 +259,14 @@ void TrackObject::init(const XMLNode &xml_node, scene::ISceneNode* parent,
             m_physical_object = PhysicalObject::fromXML(type == "movable",
                                                    xml_node,
                                                    this);
+        }
+
+        if (parent_library != NULL)
+        {
+            if (is_movable)
+                parent_library->addMovableChild(this);
+            else
+                parent_library->addChild(this);
         }
 
         video::SColor glow;
@@ -273,26 +299,10 @@ void TrackObject::init(const XMLNode &xml_node, scene::ISceneNode* parent,
 
     reset();
 
-    // some static meshes are conditional
-    std::string condition;
-    xml_node.get("if", &condition);
-    if (condition == "false")
-    {
-        // TODO: doesn't work (in all cases), probably it's a bit too early, children are not loaded yet
+    if (!m_initially_visible)
         setEnabled(false);
-    }
-    else if (condition.size() > 0)
-    {
-        unsigned char result = -1;
-        Scripting::ScriptEngine* script_engine = World::getWorld()->getScriptEngine();
-        std::function<void(asIScriptContext*)> null_callback;
-        script_engine->runFunction("bool " + condition + "()", null_callback,
-            [&](asIScriptContext* ctx) { result = ctx->GetReturnByte(); });
-
-        // TODO: doesn't work (in all cases), probably it's a bit too early, children are not loaded yet
-        if (result == 0)
-            setEnabled(false);
-    }
+    if (parent_library != NULL && !parent_library->isEnabled())
+        setEnabled(false);
 }   // TrackObject
 
 // ----------------------------------------------------------------------------
@@ -324,16 +334,10 @@ void TrackObject::reset()
  */
 void TrackObject::setEnabled(bool enabled)
 {
-    if (m_enabled == enabled)
-        return;
-
     m_enabled = enabled;
 
     if (m_presentation != NULL)
         m_presentation->setEnable(m_enabled);
-
-    if (enabled)
-        reset(); // TODO: not sure why there is a reset here
 
     if (getType() == "mesh")
     {
@@ -346,13 +350,40 @@ void TrackObject::setEnabled(bool enabled)
         }
     }
 
-    for (int i = 0; i < m_movable_children.size(); i++)
+    for (unsigned int i = 0; i < m_movable_children.size(); i++)
     {
         m_movable_children[i]->setEnabled(enabled);
     }
 }   // setEnable
 
 // ----------------------------------------------------------------------------
+
+void TrackObject::resetEnabled()
+{
+    m_enabled = m_initially_visible;
+
+    if (m_presentation != NULL)
+        m_presentation->setEnable(m_initially_visible);
+
+    if (getType() == "mesh")
+    {
+        if (m_physical_object != NULL)
+        {
+            if (m_initially_visible)
+                m_physical_object->addBody();
+            else
+                m_physical_object->removeBody();
+        }
+    }
+
+    for (unsigned int i = 0; i < m_movable_children.size(); i++)
+    {
+        m_movable_children[i]->resetEnabled();
+    }
+}
+
+// ----------------------------------------------------------------------------
+
 void TrackObject::update(float dt)
 {
     if (m_presentation) m_presentation->update(dt);
@@ -402,24 +433,31 @@ void TrackObject::move(const core::vector3df& xyz, const core::vector3df& hpr,
 
     if (update_rigid_body && m_physical_object != NULL)
     {
-        // If we set a bullet position from an irrlicht position, we need to
-        // get the absolute transform from the presentation object (as set in
-        // the line before), since xyz etc here are only relative to a
-        // potential parent scene node.
-        TrackObjectPresentationSceneNode *tops =
-            dynamic_cast<TrackObjectPresentationSceneNode*>(m_presentation);
-        if(tops)
-        {
-            const core::matrix4 &m = tops->getNode()
-                                   ->getAbsoluteTransformation();
-            m_physical_object->move(m.getTranslation(),m.getRotationDegrees());
-        }
-        else
-        {
-            m_physical_object->move(xyz, hpr);
-        }
+        movePhysicalBodyToGraphicalNode(xyz, hpr);
     }
 }   // move
+
+// ----------------------------------------------------------------------------
+
+void TrackObject::movePhysicalBodyToGraphicalNode(const core::vector3df& xyz, const core::vector3df& hpr)
+{
+    // If we set a bullet position from an irrlicht position, we need to
+    // get the absolute transform from the presentation object (as set in
+    // the line before), since xyz etc here are only relative to a
+    // potential parent scene node.
+    TrackObjectPresentationSceneNode *tops =
+        dynamic_cast<TrackObjectPresentationSceneNode*>(m_presentation);
+    if (tops)
+    {
+        const core::matrix4 &m = tops->getNode()
+            ->getAbsoluteTransformation();
+        m_physical_object->move(m.getTranslation(), m.getRotationDegrees());
+    }
+    else
+    {
+        m_physical_object->move(xyz, hpr);
+    }
+}
 
 // ----------------------------------------------------------------------------
 const core::vector3df& TrackObject::getPosition() const
@@ -464,5 +502,41 @@ const core::vector3df& TrackObject::getScale() const
 
 void TrackObject::addMovableChild(TrackObject* child)
 {
+    if (!m_enabled)
+        child->setEnabled(false);
     m_movable_children.push_back(child);
+}
+
+// ----------------------------------------------------------------------------
+
+void TrackObject::addChild(TrackObject* child)
+{
+    if (!m_enabled)
+        child->setEnabled(false);
+    m_children.push_back(child);
+}
+
+// ----------------------------------------------------------------------------
+
+// scripting function
+void TrackObject::moveTo(const Scripting::SimpleVec3* pos, bool isAbsoluteCoord)
+{
+    TrackObjectPresentationLibraryNode *libnode =
+        dynamic_cast<TrackObjectPresentationLibraryNode*>(m_presentation);
+    if (libnode != NULL)
+    {
+        libnode->move(core::vector3df(pos->getX(), pos->getY(), pos->getZ()),
+            core::vector3df(0.0f, 0.0f, 0.0f), // TODO: preserve rotation
+            core::vector3df(1.0f, 1.0f, 1.0f), // TODO: preserve scale
+            isAbsoluteCoord,
+            true /* moveChildrenPhysicalBodies */);
+    }
+    else
+    {
+        move(core::vector3df(pos->getX(), pos->getY(), pos->getZ()),
+            core::vector3df(0.0f, 0.0f, 0.0f), // TODO: preserve rotation
+            core::vector3df(1.0f, 1.0f, 1.0f), // TODO: preserve scale
+            true, // updateRigidBody
+            isAbsoluteCoord);
+    }
 }
