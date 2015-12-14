@@ -46,6 +46,8 @@ DynamicRibbonWidget::DynamicRibbonWidget(const bool combo, const bool multi_row)
     m_supports_multiplayer = true;
     m_scrolling_enabled    = true;
     m_animated_contents    = false;
+    // Don't initialize m_font here to make lazy loading characters work
+    m_font                 = NULL;
 
     // by default, set all players to have no selection in this ribbon
     for (unsigned int n=0; n<MAX_PLAYER_COUNT; n++)
@@ -56,7 +58,6 @@ DynamicRibbonWidget::DynamicRibbonWidget(const bool combo, const bool multi_row)
 
     m_item_count_hint = 0;
 
-    m_font = GUIEngine::getFont()->getHollowCopy();
     m_max_label_width = 0;
 }
 // -----------------------------------------------------------------------------
@@ -384,6 +385,8 @@ void DynamicRibbonWidget::buildInternalStructure()
         name << this->m_properties[PROP_ID] << "_row" << n;
         ribbon->m_properties[PROP_ID] = name.str();
         ribbon->m_event_handler = this;
+
+        m_font = GUIEngine::getFont()->getHollowCopy();
 
         // calculate font size
         if (m_col_amount > 0)
@@ -725,6 +728,16 @@ EventPropagation DynamicRibbonWidget::focused(const int playerID)
 void DynamicRibbonWidget::onRibbonWidgetScroll(const int delta_x)
 {
     scroll(delta_x);
+}
+
+// -----------------------------------------------------------------------------
+
+void DynamicRibbonWidget::setText(const wchar_t *text)
+{
+    Widget::setText(text);
+
+    if (m_label != NULL)
+        m_label->setText(text);
 }
 
 // -----------------------------------------------------------------------------

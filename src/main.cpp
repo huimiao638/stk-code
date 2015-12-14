@@ -122,8 +122,6 @@
 #    include <unistd.h>
 #  endif
 #  define WIN32_LEAN_AND_MEAN
-#  define _WINSOCKAPI_
-#  define WIN32_LEAN_AND_MEAN
 #  include <windows.h>
 #  ifdef _MSC_VER
 #    include <direct.h>
@@ -169,7 +167,7 @@
 #include "items/attachment_manager.hpp"
 #include "items/item_manager.hpp"
 #include "items/projectile_manager.hpp"
-#include "karts/controller/ai_base_controller.hpp"
+#include "karts/controller/ai_base_lap_controller.hpp"
 #include "karts/kart_properties.hpp"
 #include "karts/kart_properties_manager.hpp"
 #include "modes/demo_world.hpp"
@@ -549,6 +547,9 @@ void cmdLineHelp()
     "  -h,  --help             Show this help.\n"
     "       --log=N            Set the verbosity to a value between\n"
     "                          0 (Debug) and 5 (Only Fatal messages)\n"
+    "       --root=DIR         Path to add to the list of STK root directories.\n"
+    "                          You can specify more than one by separating them\n"
+    "                          with colons (:).\n"
     "\n"
     "You can visit SuperTuxKart's homepage at "
     "http://supertuxkart.sourceforge.net\n\n",
@@ -759,6 +760,8 @@ int handleCmdLine()
         UserConfigParams::m_rendering_debug=true;
     if(CommandLine::has("--ai-debug"))
         AIBaseController::enableDebug();
+    if (CommandLine::has("--fps-debug"))
+        UserConfigParams::m_fps_debug = true;
 
     if(UserConfigParams::m_artist_debug_mode)
     {
@@ -845,7 +848,7 @@ int handleCmdLine()
         race_manager->setNumKarts((int)l.size()+1);
     }   // --ai
 
-    if(CommandLine::has( "--mode", &s))
+    if(CommandLine::has( "--mode", &s) || CommandLine::has( "--difficulty", &s))
     {
         int n = atoi(s.c_str());
         if(n<0 || n>RaceManager::DIFFICULTY_LAST)
@@ -1008,7 +1011,7 @@ int handleCmdLine()
     // Demo mode
     if(CommandLine::has("--demo-mode", &s))
     {
-        float t;
+        float t = 0;
         StringUtils::fromString(s, t);
         DemoWorld::enableDemoMode(t);
         // The default number of laps is taken from ProfileWorld and
@@ -1075,7 +1078,7 @@ int handleCmdLine()
 void initUserConfig()
 {
     file_manager = new FileManager();
-    user_config             = new UserConfig();     // needs file_manager
+    user_config  = new UserConfig();     // needs file_manager
     user_config->loadConfig();
     // Some parts of the file manager needs user config (paths for models
     // depend on artist debug flag). So init the rest of the file manager
@@ -1155,6 +1158,11 @@ void initRest()
                  file_manager->getAddonsFile("karts/"));
     track_manager->addTrackSearchDir(
                  file_manager->getAddonsFile("tracks/"));
+
+    {
+        XMLNode characteristicsNode(file_manager->getAsset("kart_characteristics.xml"));
+        kart_properties_manager->loadCharacteristics(&characteristicsNode);
+    }
 
     track_manager->loadTrackList();
     music_manager->addMusicToTracks();
@@ -1260,9 +1268,9 @@ int main(int argc, char *argv[] )
         handleCmdLineOutputModifier();
 
         if(CommandLine::has("--root", &s))
-        {
             FileManager::addRootDirs(s);
-        }
+        if (CommandLine::has("--stdout", &s))
+            FileManager::setStdoutName(s);
 
         // Init the minimum managers so that user config exists, then
         // handle all command line options that do not need (or must
@@ -1283,14 +1291,6 @@ int main(int argc, char *argv[] )
         input_manager->setMode(InputManager::MENU);
         main_loop = new MainLoop();
         material_manager->loadMaterial();
-
-        // Load the font textures - they are all lazily loaded
-        // so no need to push a texture search path. They will actually
-        // be loaded from ScalableFont.
-        file_manager->pushTextureSearchPath(file_manager->getAsset(FileManager::FONT, ""));
-        material_manager->addSharedMaterial(
-                   file_manager->getAsset(FileManager::FONT,"materials.xml"));
-        file_manager->popTextureSearchPath();
 
         GUIEngine::addLoadingIcon( irr_driver->getTexture(FileManager::GUI,
                                                           "options_video.png"));

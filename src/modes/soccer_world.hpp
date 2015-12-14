@@ -76,8 +76,7 @@ public:
     virtual void getKartsDisplayInfo(
                           std::vector<RaceGUIBase::KartIconDisplayInfo> *info);
     int getScore(unsigned int i);
-    virtual bool raceHasLaps(){ return false; }
-    virtual void moveKartAfterRescue(AbstractKart* kart);
+    virtual bool raceHasLaps() { return false; }
 
     virtual const std::string& getIdent() const;
 
@@ -107,7 +106,7 @@ protected:
     virtual AbstractKart *createKart(const std::string &kart_ident, int index,
                              int local_player_id, int global_player_id,
                              RaceManager::KartType type,
-                             const PlayerDifficulty *difficulty);
+                             PerPlayerDifficulty difficulty);
 };   // SoccerWorld
 
 

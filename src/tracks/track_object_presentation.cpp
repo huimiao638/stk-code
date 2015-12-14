@@ -25,6 +25,7 @@
 #include "graphics/camera.hpp"
 #include "graphics/central_settings.hpp"
 #include "graphics/irr_driver.hpp"
+#include "graphics/light.hpp"
 #include "graphics/material_manager.hpp"
 #include "graphics/mesh_tools.hpp"
 #include "graphics/particle_emitter.hpp"
@@ -40,6 +41,9 @@
 #include "modes/world.hpp"
 #include "scriptengine/script_engine.hpp"
 #include "states_screens/dialogs/tutorial_message_dialog.hpp"
+#include "tracks/check_cylinder.hpp"
+#include "tracks/check_manager.hpp"
+#include "tracks/check_sphere.hpp"
 #include "tracks/model_definition_loader.hpp"
 #include "tracks/track.hpp"
 #include "tracks/track_manager.hpp"
@@ -86,6 +90,16 @@ const core::vector3df TrackObjectPresentationSceneNode::getAbsolutePosition() co
 }   // getAbsolutePosition
 
 // ----------------------------------------------------------------------------
+
+const core::vector3df TrackObjectPresentationSceneNode::getAbsoluteCenterPosition() const
+{
+    if (m_node == NULL) return m_init_xyz;
+    m_node->updateAbsolutePosition();
+    core::aabbox3d<f32> bounds = m_node->getTransformedBoundingBox();
+    return bounds.getCenter();
+}
+
+// ----------------------------------------------------------------------------
 const core::vector3df& TrackObjectPresentationSceneNode::getRotation() const
 {
     if (m_node == NULL) return m_init_hpr;
@@ -125,7 +139,7 @@ void TrackObjectPresentationSceneNode::move(const core::vector3df& xyz,
 // ----------------------------------------------------------------------------
 void TrackObjectPresentationSceneNode::setEnable(bool enabled)
 {
-    if (m_node != NULL)
+    if (m_node != NULL && (!enabled || !m_force_always_hidden))
         m_node->setVisible(enabled);
 }   // setEnable
 
@@ -427,13 +441,30 @@ void TrackObjectPresentationMesh::init(const XMLNode* xml_node,
 
     if (interaction == "physicsonly")
     {
-        m_node = irr_driver->addMesh(m_mesh, m_model_file, parent);
-        enabled = false;
-        m_frame_start = 0;
-        m_frame_end = 0;
+        std::string type;
+        xml_node->get("type", &type);
+        if (type == "animation" || xml_node->hasChildNamed("curve"))
+        {
+            // Animated
+            //m_node = irr_driver->getSceneManager()->addEmptySceneNode();
+            m_node = irr_driver->addMesh(m_mesh, m_model_file, parent);
+            enabled = false;
+            m_force_always_hidden = true;
+            m_frame_start = 0;
+            m_frame_end = 0;
+        }
+        else
+        {
+            // Static
+            m_node = irr_driver->addMesh(m_mesh, m_model_file, parent);
+            enabled = false;
+            m_force_always_hidden = true;
+            m_frame_start = 0;
+            m_frame_end = 0;
 
-        if (World::getWorld() && World::getWorld()->getTrack() && xml_node)
-            World::getWorld()->getTrack()->addPhysicsOnlyNode(m_node);
+            if (World::getWorld() && World::getWorld()->getTrack() && xml_node)
+                World::getWorld()->getTrack()->addPhysicsOnlyNode(m_node);
+        }
     }
     else if (m_is_in_skybox)
     {
@@ -580,6 +611,7 @@ TrackObjectPresentationSound::TrackObjectPresentationSound(
 {
     // TODO: respect 'parent' if any
 
+    m_enabled = true;
     m_sound = NULL;
     m_xyz   = m_init_xyz;
 
@@ -639,7 +671,7 @@ TrackObjectPresentationSound::TrackObjectPresentationSound(
 // ----------------------------------------------------------------------------
 void TrackObjectPresentationSound::update(float dt)
 {
-    if (m_sound != NULL)
+    if (m_sound != NULL && m_enabled)
     {
         // muting when too far is implemented manually since not supported by
         // OpenAL so need to call this every frame to update the muting state
@@ -649,9 +681,9 @@ void TrackObjectPresentationSound::update(float dt)
 }   // update
 
 // ----------------------------------------------------------------------------
-void TrackObjectPresentationSound::onTriggerItemApproached(Item* who)
+void TrackObjectPresentationSound::onTriggerItemApproached()
 {
-    if (m_sound != NULL && m_sound->getStatus() != SFXBase::SFX_PLAYING)
+    if (m_sound != NULL && m_sound->getStatus() != SFXBase::SFX_PLAYING && m_enabled)
     {
         m_sound->play();
     }
@@ -660,7 +692,7 @@ void TrackObjectPresentationSound::onTriggerItemApproached(Item* who)
 // ----------------------------------------------------------------------------
 void TrackObjectPresentationSound::triggerSound(bool loop)
 {
-    if (m_sound != NULL)
+    if (m_sound != NULL && m_enabled)
     {
         m_sound->setLoop(loop);
         m_sound->play();
@@ -670,7 +702,8 @@ void TrackObjectPresentationSound::triggerSound(bool loop)
 // ----------------------------------------------------------------------------
 void TrackObjectPresentationSound::stopSound()
 {
-    if (m_sound != NULL) m_sound->stop();
+    if (m_sound != NULL) 
+        m_sound->stop();
 }   // stopSound
 
 // ----------------------------------------------------------------------------
@@ -689,8 +722,23 @@ void TrackObjectPresentationSound::move(const core::vector3df& xyz,
                                         bool isAbsoluteCoord)
 {
     m_xyz = xyz;
-    if (m_sound != NULL) m_sound->setPosition(xyz);
+    if (m_sound != NULL && m_enabled)
+        m_sound->setPosition(xyz);
 }   // move
+
+// ----------------------------------------------------------------------------
+
+void TrackObjectPresentationSound::setEnable(bool enabled)
+{
+    if (enabled != m_enabled)
+    {
+        m_enabled = enabled;
+        if (enabled)
+            triggerSound(true);
+        else
+            stopSound();
+    }
+}
 
 // ----------------------------------------------------------------------------
 TrackObjectPresentationBillboard::TrackObjectPresentationBillboard(
@@ -925,7 +973,16 @@ TrackObjectPresentationLight::TrackObjectPresentationLight(
 TrackObjectPresentationLight::~TrackObjectPresentationLight()
 {
 }   // ~TrackObjectPresentationLight
-
+// ----------------------------------------------------------------------------
+void TrackObjectPresentationLight::setEnergy(float energy)
+{
+    m_energy = energy;
+    LightNode* lnode = dynamic_cast<LightNode*>(m_node);
+    if (lnode != NULL)
+    {
+        lnode->setEnergy(energy);
+    }
+}
 // ----------------------------------------------------------------------------
 TrackObjectPresentationActionTrigger::TrackObjectPresentationActionTrigger(
                                                        const XMLNode& xml_node)
@@ -935,12 +992,40 @@ TrackObjectPresentationActionTrigger::TrackObjectPresentationActionTrigger(
     xml_node.get("distance", &trigger_distance);
     xml_node.get("action",   &m_action        );
 
+    std::string trigger_type;
+    xml_node.get("trigger-type", &trigger_type);
+    if (trigger_type == "point" || trigger_type.empty())
+    {
+        m_type = TRIGGER_TYPE_POINT;
+    }
+    else if (trigger_type == "cylinder")
+    {
+        m_type = TRIGGER_TYPE_CYLINDER;
+    }
+    else
+    {
+        assert(false);
+    }
+
     m_action_active = true;
 
     if (m_action.size() == 0)
         Log::warn("TrackObject", "Action-trigger has no action defined.");
 
-    ItemManager::get()->newItem(m_init_xyz, trigger_distance, this);
+    if (m_type == TRIGGER_TYPE_POINT)
+    {
+        // TODO: rewrite as a sphere check structure?
+        ItemManager::get()->newItem(m_init_xyz, trigger_distance, this);
+        // CheckManager::get()->add(new CheckSphere(xml_node, 0 /* TODO what is this? */));
+    }
+    else if (m_type == TRIGGER_TYPE_CYLINDER)
+    {
+        CheckManager::get()->add(new CheckCylinder(xml_node, 0 /* TODO what is this? */, this));
+    }
+    else
+    {
+        assert(false);
+    }
 }   // TrackObjectPresentationActionTrigger
 
 // ----------------------------------------------------------------------------
@@ -956,11 +1041,12 @@ TrackObjectPresentationActionTrigger::TrackObjectPresentationActionTrigger(
     float trigger_distance = distance;
     m_action               = script_name;
     m_action_active        = true;
+    m_type                 = TRIGGER_TYPE_POINT;
     ItemManager::get()->newItem(m_init_xyz, trigger_distance, this);
 }   // TrackObjectPresentationActionTrigger
 
 // ----------------------------------------------------------------------------
-void TrackObjectPresentationActionTrigger::onTriggerItemApproached(Item* who)
+void TrackObjectPresentationActionTrigger::onTriggerItemApproached()
 {
     if (!m_action_active) return;
 
@@ -971,6 +1057,6 @@ void TrackObjectPresentationActionTrigger::onTriggerItemApproached(Item* who)
     Camera* camera = Camera::getActiveCamera();
     if (camera != NULL && camera->getKart() != NULL)
         idKart = camera->getKart()->getWorldKartId();
-    script_engine->runFunction("void " + m_action + "(int)",
+    script_engine->runFunction(true, "void " + m_action + "(int)",
         [=](asIScriptContext* ctx) { ctx->SetArgDWord(0, idKart); });
 }   // onTriggerItemApproached

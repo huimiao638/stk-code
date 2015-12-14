@@ -16,13 +16,14 @@
 //  along with this program; if not, write to the Free Software
 //  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
-#include <assert.h>
-#include <angelscript.h>
+#include "script_kart.hpp"
+
 #include "karts/kart.hpp"
 #include "modes/world.hpp"
-#include "script_kart.hpp"
 #include "scriptvec3.hpp"
 
+#include <assert.h>
+#include <angelscript.h>
 //debug
 #include <iostream>
 
@@ -55,7 +56,6 @@ namespace Scripting
             kart->setXYZ(v);
             unsigned int index = World::getWorld()->getRescuePositionIndex(kart);
             btTransform s = World::getWorld()->getRescueTransform(index);
-            const btVector3 &xyz = s.getOrigin();
             s.setRotation(btQuaternion(btVector3(0.0f, 1.0f, 0.0f), 0.0f));
             World::getWorld()->moveKartTo(kart, s);
         }
@@ -118,6 +118,13 @@ namespace Scripting
             return SimpleVec3(velocity.getX(), velocity.getY(), velocity.getZ());
         }
 
+        /** Gets the maximum speed (velocity) a kart can reach */
+        float getMaxSpeed(int idKart)
+        {
+            AbstractKart* kart = World::getWorld()->getKart(idKart);
+            return kart->getKartProperties()->getEngineMaxSpeed();
+        }
+
         /** @}*/
         /** @}*/
 
@@ -131,6 +138,7 @@ namespace Scripting
             //r = engine->RegisterGlobalFunction("void jumpTo(int id, float x, float y)", asFUNCTION(jumpTo), asCALL_GENERIC); assert(r >= 0);
             r = engine->RegisterGlobalFunction("Vec3 getLocation(int id)", asFUNCTION(getLocation), asCALL_CDECL); assert(r >= 0);
             r = engine->RegisterGlobalFunction("Vec3 getVelocity(int id)", asFUNCTION(getVelocity), asCALL_CDECL); assert(r >= 0);
+            r = engine->RegisterGlobalFunction("float getMaxSpeed(int id)", asFUNCTION(getMaxSpeed), asCALL_CDECL); assert(r >= 0);
         }
 
         void registerScriptEnums(asIScriptEngine *engine)

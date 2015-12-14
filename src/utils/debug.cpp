@@ -26,6 +26,7 @@
 #include "items/powerup_manager.hpp"
 #include "items/attachment.hpp"
 #include "karts/abstract_kart.hpp"
+#include "karts/kart_properties.hpp"
 #include "karts/controller/controller.hpp"
 #include "modes/world.hpp"
 #include "physics/irr_debug_drawer.hpp"
@@ -98,9 +99,14 @@ enum DebugMenuCommand
     DEBUG_GUI_CAM_TOP,
     DEBUG_GUI_CAM_WHEEL,
     DEBUG_GUI_CAM_BEHIND_KART,
+    DEBUG_GUI_CAM_SIDE_OF_KART,
     DEBUG_GUI_CAM_NORMAL,
     DEBUG_GUI_CAM_SMOOTH,
     DEBUG_GUI_CAM_ATTACH,
+    DEBUG_VIEW_KART_ONE,
+    DEBUG_VIEW_KART_TWO,
+    DEBUG_VIEW_KART_THREE,
+    DEBUG_VIEW_KART_FOUR,
     DEBUG_HIDE_KARTS,
     DEBUG_THROTTLE_FPS,
     DEBUG_VISUAL_VALUES,
@@ -135,14 +141,14 @@ void addAttachment(Attachment::AttachmentType type)
         if (type == Attachment::ATTACH_ANVIL)
         {
             kart->getAttachment()
-                ->set(type, stk_config->m_anvil_time);
-            kart->adjustSpeed(stk_config->m_anvil_speed_factor);
+                ->set(type, kart->getKartProperties()->getAnvilDuration());
+            kart->adjustSpeed(kart->getKartProperties()->getAnvilSpeedFactor());
             kart->updateWeight();
         }
         else if (type == Attachment::ATTACH_PARACHUTE)
         {
             kart->getAttachment()
-                ->set(type, stk_config->m_parachute_time);
+                ->set(type, kart->getKartProperties()->getParachuteDuration());
         }
         else if (type == Attachment::ATTACH_BOMB)
         {
@@ -153,7 +159,28 @@ void addAttachment(Attachment::AttachmentType type)
 
 }   // addAttachment
 
+// ----------------------------------------------------------------------------
+void changeCameraTarget(u32 num)
+{
+    World* world = World::getWorld();
+    Camera *cam = Camera::getActiveCamera();
+    if (world == NULL || cam == NULL) return;
+
+    if (num < (world->getNumKarts() + 1))
+    {
+        AbstractKart* kart = world->getKart(num - 1);
+        if (kart == NULL) return;
+        if (kart->isEliminated()) return;
+        cam->setMode(Camera::CM_NORMAL);
+        cam->setKart(kart);
+    }
+    else
+        return;
+
+}   // changeCameraTarget
+
 // -----------------------------------------------------------------------------
+
 /** returns the light node with the lowest distance to the player kart (excluding
  * nitro emitters) */
 LightNode* findNearestLight()
@@ -187,6 +214,404 @@ LightNode* findNearestLight()
     return nearest;
 }
 
+// ----------------------------------------------------------------------------
+
+bool handleContextMenuAction(s32 cmdID)
+{
+
+    World *world = World::getWorld();
+    Physics *physics = world ? world->getPhysics() : NULL;
+    if (cmdID == DEBUG_GRAPHICS_RELOAD_SHADERS)
+    {
+        Log::info("Debug", "Reloading shaders...");
+        ShaderBase::updateShaders();
+    }
+    else if (cmdID == DEBUG_GRAPHICS_RESET)
+    {
+        if (physics)
+            physics->setDebugMode(IrrDebugDrawer::DM_NONE);
+
+        irr_driver->resetDebugModes();
+    }
+    else if (cmdID == DEBUG_GRAPHICS_WIREFRAME)
+    {
+        if (physics)
+            physics->setDebugMode(IrrDebugDrawer::DM_NONE);
+
+        irr_driver->resetDebugModes();
+        irr_driver->toggleWireframe();
+    }
+    else if (cmdID == DEBUG_GRAPHICS_MIPMAP_VIZ)
+    {
+        if (physics)
+            physics->setDebugMode(IrrDebugDrawer::DM_NONE);
+
+        irr_driver->resetDebugModes();
+        irr_driver->toggleMipVisualization();
+    }
+    else if (cmdID == DEBUG_GRAPHICS_NORMALS_VIZ)
+    {
+        if (physics)
+            physics->setDebugMode(IrrDebugDrawer::DM_NONE);
+
+        irr_driver->resetDebugModes();
+        irr_driver->toggleNormals();
+    }
+    else if (cmdID == DEBUG_GRAPHICS_SSAO_VIZ)
+    {
+        if (physics)
+            physics->setDebugMode(IrrDebugDrawer::DM_NONE);
+
+        irr_driver->resetDebugModes();
+        irr_driver->toggleSSAOViz();
+    }
+    else if (cmdID == DEBUG_GRAPHICS_RSM_VIZ)
+    {
+        if (physics)
+            physics->setDebugMode(IrrDebugDrawer::DM_NONE);
+
+        irr_driver->resetDebugModes();
+        irr_driver->toggleRSM();
+    }
+    else if (cmdID == DEBUG_GRAPHICS_RH_VIZ)
+    {
+        if (physics)
+            physics->setDebugMode(IrrDebugDrawer::DM_NONE);
+
+        irr_driver->resetDebugModes();
+        irr_driver->toggleRH();
+    }
+    else if (cmdID == DEBUG_GRAPHICS_GI_VIZ)
+    {
+        if (physics)
+            physics->setDebugMode(IrrDebugDrawer::DM_NONE);
+
+        irr_driver->resetDebugModes();
+        irr_driver->toggleGI();
+    }
+    else if (cmdID == DEBUG_GRAPHICS_SHADOW_VIZ)
+    {
+        if (physics)
+            physics->setDebugMode(IrrDebugDrawer::DM_NONE);
+
+        irr_driver->resetDebugModes();
+        irr_driver->toggleShadowViz();
+    }
+    else if (cmdID == DEBUG_GRAPHICS_LIGHT_VIZ)
+    {
+        if (physics)
+            physics->setDebugMode(IrrDebugDrawer::DM_NONE);
+
+        irr_driver->resetDebugModes();
+        irr_driver->toggleLightViz();
+    }
+    else if (cmdID == DEBUG_GRAPHICS_DISTORT_VIZ)
+    {
+        if (physics)
+            physics->setDebugMode(IrrDebugDrawer::DM_NONE);
+
+        irr_driver->resetDebugModes();
+        irr_driver->toggleDistortViz();
+    }
+    else if (cmdID == DEBUG_GRAPHICS_BULLET_1)
+    {
+        irr_driver->resetDebugModes();
+
+        if (!world) return false;
+        physics->setDebugMode(IrrDebugDrawer::DM_KARTS_PHYSICS);
+    }
+    else if (cmdID == DEBUG_GRAPHICS_BULLET_2)
+    {
+        irr_driver->resetDebugModes();
+
+        if (!world) return false;
+        Physics *physics = world->getPhysics();
+        physics->setDebugMode(IrrDebugDrawer::DM_NO_KARTS_GRAPHICS);
+    }
+    else if (cmdID == DEBUG_GRAPHICS_BOUNDING_BOXES_VIZ)
+    {
+        irr_driver->resetDebugModes();
+        irr_driver->toggleBoundingBoxesViz();
+    }
+    else if (cmdID == DEBUG_PROFILER)
+    {
+        UserConfigParams::m_profiler_enabled =
+            !UserConfigParams::m_profiler_enabled;
+    }
+    else if (cmdID == DEBUG_PROFILER_GENERATE_REPORT)
+    {
+        profiler.setCaptureReport(!profiler.getCaptureReport());
+    }
+    else if (cmdID == DEBUG_THROTTLE_FPS)
+    {
+        main_loop->setThrottleFPS(false);
+    }
+    else if (cmdID == DEBUG_FPS)
+    {
+        UserConfigParams::m_display_fps =
+            !UserConfigParams::m_display_fps;
+    }
+    else if (cmdID == DEBUG_SAVE_REPLAY)
+    {
+        ReplayRecorder::get()->Save();
+    }
+    else if (cmdID == DEBUG_SAVE_HISTORY)
+    {
+        history->Save();
+    }
+    else if (cmdID == DEBUG_POWERUP_BOWLING)
+    {
+        addPowerup(PowerupManager::POWERUP_BOWLING);
+    }
+    else if (cmdID == DEBUG_POWERUP_BUBBLEGUM)
+    {
+        addPowerup(PowerupManager::POWERUP_BUBBLEGUM);
+    }
+    else if (cmdID == DEBUG_POWERUP_CAKE)
+    {
+        addPowerup(PowerupManager::POWERUP_CAKE);
+    }
+    else if (cmdID == DEBUG_POWERUP_PARACHUTE)
+    {
+        addPowerup(PowerupManager::POWERUP_PARACHUTE);
+    }
+    else if (cmdID == DEBUG_POWERUP_PLUNGER)
+    {
+        addPowerup(PowerupManager::POWERUP_PLUNGER);
+    }
+    else if (cmdID == DEBUG_POWERUP_RUBBERBALL)
+    {
+        addPowerup(PowerupManager::POWERUP_RUBBERBALL);
+    }
+    else if (cmdID == DEBUG_POWERUP_SWATTER)
+    {
+        addPowerup(PowerupManager::POWERUP_SWATTER);
+    }
+    else if (cmdID == DEBUG_POWERUP_SWITCH)
+    {
+        addPowerup(PowerupManager::POWERUP_SWITCH);
+    }
+    else if (cmdID == DEBUG_POWERUP_ZIPPER)
+    {
+        addPowerup(PowerupManager::POWERUP_ZIPPER);
+    }
+    else if (cmdID == DEBUG_POWERUP_NITRO)
+    {
+        if (!world) return false;
+        const unsigned int num_local_players =
+            race_manager->getNumLocalPlayers();
+        for (unsigned int i = 0; i < num_local_players; i++)
+        {
+            AbstractKart* kart = world->getLocalPlayerKart(i);
+            kart->setEnergy(100.0f);
+        }
+    }
+    else if (cmdID == DEBUG_ATTACHMENT_ANVIL)
+    {
+        addAttachment(Attachment::ATTACH_ANVIL);
+    }
+    else if (cmdID == DEBUG_ATTACHMENT_BOMB)
+    {
+        addAttachment(Attachment::ATTACH_BOMB);
+    }
+    else if (cmdID == DEBUG_ATTACHMENT_PARACHUTE)
+    {
+        addAttachment(Attachment::ATTACH_PARACHUTE);
+    }
+    else if (cmdID == DEBUG_GUI_TOGGLE)
+    {
+        if (!world) return false;
+        RaceGUIBase* gui = world->getRaceGUI();
+        if (gui != NULL) gui->m_enabled = !gui->m_enabled;
+    }
+    else if (cmdID == DEBUG_GUI_HIDE_KARTS)
+    {
+        if (!world) return false;
+        for (unsigned int n = 0; n<world->getNumKarts(); n++)
+        {
+            AbstractKart* kart = world->getKart(n);
+            if (kart->getController()->isPlayerController())
+                kart->getNode()->setVisible(false);
+        }
+    }
+    else if (cmdID == DEBUG_GUI_CAM_TOP)
+    {
+        UserConfigParams::m_camera_debug = 1;
+        irr_driver->getDevice()->getCursorControl()->setVisible(true);
+    }
+    else if (cmdID == DEBUG_GUI_CAM_WHEEL)
+    {
+        UserConfigParams::m_camera_debug = 2;
+        irr_driver->getDevice()->getCursorControl()->setVisible(true);
+    }
+    else if (cmdID == DEBUG_GUI_CAM_BEHIND_KART)
+    {
+        UserConfigParams::m_camera_debug = 4;
+        irr_driver->getDevice()->getCursorControl()->setVisible(true);
+    }
+    else if (cmdID == DEBUG_GUI_CAM_SIDE_OF_KART)
+    {
+        UserConfigParams::m_camera_debug = 5;
+        irr_driver->getDevice()->getCursorControl()->setVisible(true);
+    }
+    else if (cmdID == DEBUG_GUI_CAM_FREE)
+    {
+        UserConfigParams::m_camera_debug = 3;
+        irr_driver->getDevice()->getCursorControl()->setVisible(false);
+        // Reset camera rotation
+        Camera *cam = Camera::getActiveCamera();
+        cam->setDirection(vector3df(0, 0, 1));
+        cam->setUpVector(vector3df(0, 1, 0));
+    }
+    else if (cmdID == DEBUG_GUI_CAM_NORMAL)
+    {
+        UserConfigParams::m_camera_debug = 0;
+        irr_driver->getDevice()->getCursorControl()->setVisible(true);
+    }
+    else if (cmdID == DEBUG_GUI_CAM_SMOOTH)
+    {
+        Camera *cam = Camera::getActiveCamera();
+        cam->setSmoothMovement(!cam->getSmoothMovement());
+    }
+    else if (cmdID == DEBUG_GUI_CAM_ATTACH)
+    {
+        Camera *cam = Camera::getActiveCamera();
+        cam->setAttachedFpsCam(!cam->getAttachedFpsCam());
+    }
+    else if (cmdID == DEBUG_VIEW_KART_ONE)
+    {
+        changeCameraTarget(1);
+    }
+    else if (cmdID == DEBUG_VIEW_KART_TWO)
+    {
+        changeCameraTarget(2);
+    }
+    else if (cmdID == DEBUG_VIEW_KART_THREE)
+    {
+        changeCameraTarget(3);
+    }
+    else if (cmdID == DEBUG_VIEW_KART_FOUR)
+    {
+        changeCameraTarget(4);
+    }
+    else if (cmdID == DEBUG_PRINT_START_POS)
+    {
+        if (!world) return false;
+        for (unsigned int i = 0; i<world->getNumKarts(); i++)
+        {
+            AbstractKart *kart = world->getKart(i);
+            Log::warn(kart->getIdent().c_str(),
+                "<start position=\"%d\" x=\"%f\" y=\"%f\" z=\"%f\" h=\"%f\"/>",
+                i, kart->getXYZ().getX(), kart->getXYZ().getY(),
+                kart->getXYZ().getZ(), kart->getHeading()*RAD_TO_DEGREE
+                );
+        }
+    }
+    else if (cmdID == DEBUG_VISUAL_VALUES)
+    {
+#if !defined(__APPLE__)
+        DebugSliderDialog *dsd = new DebugSliderDialog();
+        dsd->setSliderHook("red_slider", 0, 255,
+            [](){ return int(irr_driver->getAmbientLight().r * 255.f); },
+            [](int v){
+            video::SColorf ambient = irr_driver->getAmbientLight();
+            ambient.setColorComponentValue(0, v / 255.f);
+            irr_driver->setAmbientLight(ambient); }
+        );
+        dsd->setSliderHook("green_slider", 0, 255,
+            [](){ return int(irr_driver->getAmbientLight().g * 255.f); },
+            [](int v){
+            video::SColorf ambient = irr_driver->getAmbientLight();
+            ambient.setColorComponentValue(1, v / 255.f);
+            irr_driver->setAmbientLight(ambient); }
+        );
+        dsd->setSliderHook("blue_slider", 0, 255,
+            [](){ return int(irr_driver->getAmbientLight().b * 255.f); },
+            [](int v){
+            video::SColorf ambient = irr_driver->getAmbientLight();
+            ambient.setColorComponentValue(2, v / 255.f);
+            irr_driver->setAmbientLight(ambient); }
+        );
+        dsd->setSliderHook("ssao_radius", 0, 100,
+            [](){ return int(irr_driver->getSSAORadius() * 10.f); },
+            [](int v){irr_driver->setSSAORadius(v / 10.f); }
+        );
+        dsd->setSliderHook("ssao_k", 0, 100,
+            [](){ return int(irr_driver->getSSAOK() * 10.f); },
+            [](int v){irr_driver->setSSAOK(v / 10.f); }
+        );
+        dsd->setSliderHook("ssao_sigma", 0, 100,
+            [](){ return int(irr_driver->getSSAOSigma() * 10.f); },
+            [](int v){irr_driver->setSSAOSigma(v / 10.f); }
+        );
+#endif
+    }
+    else if (cmdID == DEBUG_ADJUST_LIGHTS)
+    {
+#if !defined(__APPLE__)
+        // Some sliders use multipliers because the spinner widget
+        // only supports integers
+        DebugSliderDialog *dsd = new DebugSliderDialog();
+        dsd->changeLabel("Red", "Red (x10)");
+        dsd->setSliderHook("red_slider", 0, 100,
+            []()
+            {
+                return int(findNearestLight()->getColor().X * 100);
+            },
+            [](int intensity)
+            {
+                LightNode* nearest = findNearestLight();
+                core::vector3df color = nearest->getColor();
+                nearest->setColor(intensity / 100.0f, color.Y, color.Z);
+            }
+        );
+        dsd->changeLabel("Green", "Green (x10)");
+        dsd->setSliderHook("green_slider", 0, 100,
+            []()
+            {
+                return int(findNearestLight()->getColor().Y * 100);
+            },
+            [](int intensity)
+            {
+                LightNode* nearest = findNearestLight();
+                core::vector3df color = nearest->getColor();
+                nearest->setColor(color.X, intensity / 100.0f, color.Z);
+            }
+        );
+        dsd->changeLabel("Blue", "Blue (x10)");
+        dsd->setSliderHook("blue_slider", 0, 100,
+            []()
+            {
+                return int(findNearestLight()->getColor().Z * 100);
+            },
+            [](int intensity)
+            {
+                LightNode* nearest = findNearestLight();
+                core::vector3df color = nearest->getColor();
+                nearest->setColor(color.X, color.Y, intensity / 100.0f);
+            }
+        );
+        dsd->changeLabel("SSAO radius", "energy (x10)");
+        dsd->setSliderHook("ssao_radius", 0, 100,
+            []()     { return int(findNearestLight()->getEnergy() * 10);  },
+            [](int v){        findNearestLight()->setEnergy(v / 10.0f); }
+        );
+        dsd->changeLabel("SSAO k", "radius");
+        dsd->setSliderHook("ssao_k", 0, 100,
+            []()     { return int(findNearestLight()->getRadius());  },
+            [](int v){        findNearestLight()->setRadius(float(v)); }
+        );
+        dsd->changeLabel("SSAO Sigma", "[None]");
+#endif
+    }
+    else if (cmdID == DEBUG_SCRIPT_CONSOLE)
+    {
+        ScriptingConsole* console = new ScriptingConsole();
+    }
+
+    return false;
+}
+
 // -----------------------------------------------------------------------------
 /** Debug menu handling */
 bool onEvent(const SEvent &event)
@@ -201,10 +626,11 @@ bool onEvent(const SEvent &event)
         if(event.MouseInput.Event == EMIE_RMOUSE_PRESSED_DOWN &&
              !g_debug_menu_visible)
         {
+            irr_driver->getDevice()->getCursorControl()->setVisible(true);
+
             // root menu
             gui::IGUIEnvironment* guienv = irr_driver->getGUI();
-            core::rect<s32> r(event.MouseInput.X,     event.MouseInput.Y,
-                              event.MouseInput.Y+100, event.MouseInput.Y+100);
+            core::rect<s32> r(100, 50, 150, 500);
             IGUIContextMenu* mnu = guienv->addContextMenu(r, NULL);
             int graphicsMenuIndex = mnu->addItem(L"Graphics >",-1,true,true);
 
@@ -251,12 +677,20 @@ bool onEvent(const SEvent &event)
             sub->addItem(L"Toggle GUI", DEBUG_GUI_TOGGLE);
             sub->addItem(L"Hide karts", DEBUG_GUI_HIDE_KARTS);
             sub->addItem(L"Top view", DEBUG_GUI_CAM_TOP);
-            sub->addItem(L"Wheel view", DEBUG_GUI_CAM_WHEEL);
+            sub->addItem(L"Behind wheel view", DEBUG_GUI_CAM_WHEEL);
             sub->addItem(L"Behind kart view", DEBUG_GUI_CAM_BEHIND_KART);
-            sub->addItem(L"First person view", DEBUG_GUI_CAM_FREE);
-            sub->addItem(L"Normal view", DEBUG_GUI_CAM_NORMAL);
+            sub->addItem(L"Side of kart view", DEBUG_GUI_CAM_SIDE_OF_KART);
+            sub->addItem(L"First person view (Ctrl + F1)", DEBUG_GUI_CAM_FREE);
+            sub->addItem(L"Normal view (Ctrl + F2)", DEBUG_GUI_CAM_NORMAL);
             sub->addItem(L"Toggle smooth camera", DEBUG_GUI_CAM_SMOOTH);
             sub->addItem(L"Attach fps camera to kart", DEBUG_GUI_CAM_ATTACH);
+
+            mnu->addItem(L"Change camera target >",-1,true, true);
+            sub = mnu->getSubMenu(4);
+            sub->addItem(L"To kart one", DEBUG_VIEW_KART_ONE);
+            sub->addItem(L"To kart two", DEBUG_VIEW_KART_TWO);
+            sub->addItem(L"To kart three", DEBUG_VIEW_KART_THREE);
+            sub->addItem(L"To kart four", DEBUG_VIEW_KART_FOUR);
 
             mnu->addItem(L"Adjust values", DEBUG_VISUAL_VALUES);
 
@@ -290,388 +724,36 @@ bool onEvent(const SEvent &event)
             IGUIContextMenu *menu = (IGUIContextMenu*)event.GUIEvent.Caller;
             s32 cmdID = menu->getItemCommandId(menu->getSelectedItem());
 
-            if(event.GUIEvent.EventType == EGET_ELEMENT_CLOSED)
+            if (event.GUIEvent.EventType == EGET_ELEMENT_CLOSED)
             {
                 g_debug_menu_visible = false;
             }
-
-            if (event.GUIEvent.EventType == gui::EGET_MENU_ITEM_SELECTED)
+            else if (event.GUIEvent.EventType == gui::EGET_MENU_ITEM_SELECTED)
             {
-                World *world = World::getWorld();
-                Physics *physics = world ? world->getPhysics() : NULL;
-                if(cmdID == DEBUG_GRAPHICS_RELOAD_SHADERS)
-                {
-                    Log::info("Debug", "Reloading shaders...");
-                    ShaderBase::updateShaders();
-                }
-                else if (cmdID == DEBUG_GRAPHICS_RESET)
-                {
-                    if (physics)
-                        physics->setDebugMode(IrrDebugDrawer::DM_NONE);
-
-                    irr_driver->resetDebugModes();
-                }
-                else if (cmdID == DEBUG_GRAPHICS_WIREFRAME)
-                {
-                    if (physics)
-                        physics->setDebugMode(IrrDebugDrawer::DM_NONE);
-
-                    irr_driver->resetDebugModes();
-                    irr_driver->toggleWireframe();
-                }
-                else if (cmdID == DEBUG_GRAPHICS_MIPMAP_VIZ)
-                {
-                    if (physics)
-                        physics->setDebugMode(IrrDebugDrawer::DM_NONE);
-
-                    irr_driver->resetDebugModes();
-                    irr_driver->toggleMipVisualization();
-                }
-                else if (cmdID == DEBUG_GRAPHICS_NORMALS_VIZ)
-                {
-                    if (physics)
-                        physics->setDebugMode(IrrDebugDrawer::DM_NONE);
-
-                    irr_driver->resetDebugModes();
-                    irr_driver->toggleNormals();
-                }
-                else if (cmdID == DEBUG_GRAPHICS_SSAO_VIZ)
-                {
-                    if (physics)
-                        physics->setDebugMode(IrrDebugDrawer::DM_NONE);
-
-                    irr_driver->resetDebugModes();
-                    irr_driver->toggleSSAOViz();
-                }
-                else if (cmdID == DEBUG_GRAPHICS_RSM_VIZ)
-                {
-                    if (physics)
-                        physics->setDebugMode(IrrDebugDrawer::DM_NONE);
-
-                    irr_driver->resetDebugModes();
-                    irr_driver->toggleRSM();
-                }
-                else if (cmdID == DEBUG_GRAPHICS_RH_VIZ)
-                {
-                    if (physics)
-                        physics->setDebugMode(IrrDebugDrawer::DM_NONE);
-
-                    irr_driver->resetDebugModes();
-                    irr_driver->toggleRH();
-                }
-                else if (cmdID == DEBUG_GRAPHICS_GI_VIZ)
-                {
-                    if (physics)
-                        physics->setDebugMode(IrrDebugDrawer::DM_NONE);
-
-                    irr_driver->resetDebugModes();
-                    irr_driver->toggleGI();
-                }
-                else if (cmdID == DEBUG_GRAPHICS_SHADOW_VIZ)
-                {
-                    if (physics)
-                        physics->setDebugMode(IrrDebugDrawer::DM_NONE);
-
-                    irr_driver->resetDebugModes();
-                    irr_driver->toggleShadowViz();
-                }
-                else if (cmdID == DEBUG_GRAPHICS_LIGHT_VIZ)
-                {
-                    if (physics)
-                        physics->setDebugMode(IrrDebugDrawer::DM_NONE);
-
-                    irr_driver->resetDebugModes();
-                    irr_driver->toggleLightViz();
-                }
-                else if (cmdID == DEBUG_GRAPHICS_DISTORT_VIZ)
-                {
-                    if (physics)
-                        physics->setDebugMode(IrrDebugDrawer::DM_NONE);
-
-                    irr_driver->resetDebugModes();
-                    irr_driver->toggleDistortViz();
-                }
-                else if (cmdID == DEBUG_GRAPHICS_BULLET_1)
-                {
-                    irr_driver->resetDebugModes();
-
-                    if (!world) return false;
-                    physics->setDebugMode(IrrDebugDrawer::DM_KARTS_PHYSICS);
-                }
-                else if (cmdID == DEBUG_GRAPHICS_BULLET_2)
-                {
-                    irr_driver->resetDebugModes();
-
-                    if (!world) return false;
-                    Physics *physics = world->getPhysics();
-                    physics->setDebugMode(IrrDebugDrawer::DM_NO_KARTS_GRAPHICS);
-                }
-                else if (cmdID == DEBUG_GRAPHICS_BOUNDING_BOXES_VIZ)
-                {
-                    irr_driver->resetDebugModes();
-                    irr_driver->toggleBoundingBoxesViz();
-                }
-                else if (cmdID == DEBUG_PROFILER)
-                {
-                    UserConfigParams::m_profiler_enabled =
-                                            !UserConfigParams::m_profiler_enabled;
-                }
-                else if (cmdID == DEBUG_PROFILER_GENERATE_REPORT)
-                {
-                    profiler.setCaptureReport(!profiler.getCaptureReport());
-                }
-                else if (cmdID == DEBUG_THROTTLE_FPS)
-                {
-                    main_loop->setThrottleFPS(false);
-                }
-                else if (cmdID == DEBUG_FPS)
-                {
-                    UserConfigParams::m_display_fps =
-                                        !UserConfigParams::m_display_fps;
-                }
-                else if (cmdID == DEBUG_SAVE_REPLAY)
-                {
-                    ReplayRecorder::get()->Save();
-                }
-                else if (cmdID == DEBUG_SAVE_HISTORY)
-                {
-                    history->Save();
-                }
-                else if (cmdID == DEBUG_POWERUP_BOWLING)
-                {
-                    addPowerup(PowerupManager::POWERUP_BOWLING);
-                }
-                else if (cmdID == DEBUG_POWERUP_BUBBLEGUM)
-                {
-                    addPowerup(PowerupManager::POWERUP_BUBBLEGUM);
-                }
-                else if (cmdID == DEBUG_POWERUP_CAKE)
-                {
-                    addPowerup(PowerupManager::POWERUP_CAKE);
-                }
-                else if (cmdID == DEBUG_POWERUP_PARACHUTE)
-                {
-                    addPowerup(PowerupManager::POWERUP_PARACHUTE);
-                }
-                else if (cmdID == DEBUG_POWERUP_PLUNGER)
-                {
-                    addPowerup(PowerupManager::POWERUP_PLUNGER);
-                }
-                else if (cmdID == DEBUG_POWERUP_RUBBERBALL)
-                {
-                    addPowerup(PowerupManager::POWERUP_RUBBERBALL);
-                }
-                else if (cmdID == DEBUG_POWERUP_SWATTER)
-                {
-                    addPowerup(PowerupManager::POWERUP_SWATTER);
-                }
-                else if (cmdID == DEBUG_POWERUP_SWITCH)
-                {
-                    addPowerup(PowerupManager::POWERUP_SWITCH);
-                }
-                else if (cmdID == DEBUG_POWERUP_ZIPPER)
-                {
-                    addPowerup(PowerupManager::POWERUP_ZIPPER);
-                }
-                else if (cmdID == DEBUG_POWERUP_NITRO)
-                {
-                    if (!world) return false;
-                    const unsigned int num_local_players =
-                        race_manager->getNumLocalPlayers();
-                    for(unsigned int i = 0; i < num_local_players; i++)
-                    {
-                        AbstractKart* kart = world->getLocalPlayerKart(i);
-                        kart->setEnergy(100.0f);
-                    }
-                }
-                else if (cmdID == DEBUG_ATTACHMENT_ANVIL)
-                {
-                    addAttachment(Attachment::ATTACH_ANVIL);
-                }
-                else if (cmdID == DEBUG_ATTACHMENT_BOMB)
-                {
-                    addAttachment(Attachment::ATTACH_BOMB);
-                }
-                else if (cmdID == DEBUG_ATTACHMENT_PARACHUTE)
-                {
-                    addAttachment(Attachment::ATTACH_PARACHUTE);
-                }
-                else if (cmdID == DEBUG_GUI_TOGGLE)
-                {
-                    if (!world) return false;
-                    RaceGUIBase* gui = world->getRaceGUI();
-                    if (gui != NULL) gui->m_enabled = !gui->m_enabled;
-                }
-                else if (cmdID == DEBUG_GUI_HIDE_KARTS)
-                {
-                    if (!world) return false;
-                    for (unsigned int n = 0; n<world->getNumKarts(); n++)
-                    {
-                        AbstractKart* kart = world->getKart(n);
-                        if (kart->getController()->isPlayerController())
-                            kart->getNode()->setVisible(false);
-                    }
-                }
-                else if (cmdID == DEBUG_GUI_CAM_TOP)
-                {
-                    UserConfigParams::m_camera_debug = 1;
-                    irr_driver->getDevice()->getCursorControl()->setVisible(true);
-                }
-                else if (cmdID == DEBUG_GUI_CAM_WHEEL)
-                {
-                    UserConfigParams::m_camera_debug = 2;
-                    irr_driver->getDevice()->getCursorControl()->setVisible(true);
-                }
-                else if (cmdID == DEBUG_GUI_CAM_BEHIND_KART)
-                {
-                    UserConfigParams::m_camera_debug = 4;
-                    irr_driver->getDevice()->getCursorControl()->setVisible(true);
-                }
-                else if (cmdID == DEBUG_GUI_CAM_FREE)
-                {
-                    UserConfigParams::m_camera_debug = 3;
-                    irr_driver->getDevice()->getCursorControl()->setVisible(false);
-                    // Reset camera rotation
-                    Camera *cam = Camera::getActiveCamera();
-                    cam->setDirection(vector3df(0, 0, 1));
-                    cam->setUpVector(vector3df(0, 1, 0));
-                }
-                else if (cmdID == DEBUG_GUI_CAM_NORMAL)
-                {
-                    UserConfigParams::m_camera_debug = 0;
-                    irr_driver->getDevice()->getCursorControl()->setVisible(true);
-                }
-                else if (cmdID == DEBUG_GUI_CAM_SMOOTH)
-                {
-                    Camera *cam = Camera::getActiveCamera();
-                    cam->setSmoothMovement(!cam->getSmoothMovement());
-                }
-                else if (cmdID == DEBUG_GUI_CAM_ATTACH)
-                {
-                    Camera *cam = Camera::getActiveCamera();
-                    cam->setAttachedFpsCam(!cam->getAttachedFpsCam());
-                }
-                else if (cmdID == DEBUG_PRINT_START_POS)
-                {
-                    if(!world) return false;
-                    for(unsigned int i=0; i<world->getNumKarts(); i++)
-                    {
-                        AbstractKart *kart = world->getKart(i);
-                        Log::warn(kart->getIdent().c_str(),
-                            "<start position=\"%d\" x=\"%f\" y=\"%f\" z=\"%f\" h=\"%f\"/>",
-                            i, kart->getXYZ().getX(), kart->getXYZ().getY(),
-                            kart->getXYZ().getZ(),kart->getHeading()*RAD_TO_DEGREE
-                            );
-                    }
-                }
-                else if (cmdID == DEBUG_VISUAL_VALUES)
-                {
-#if !defined(__APPLE__)
-                    DebugSliderDialog *dsd = new DebugSliderDialog();
-                    dsd->setSliderHook("red_slider", 0, 255,
-                        [](){ return int(irr_driver->getAmbientLight().r * 255.f); },
-                        [](int v){
-                            video::SColorf ambient = irr_driver->getAmbientLight();
-                            ambient.setColorComponentValue(0, v / 255.f);
-                            irr_driver->setAmbientLight(ambient); }
-                    );
-                    dsd->setSliderHook("green_slider", 0, 255,
-                        [](){ return int(irr_driver->getAmbientLight().g * 255.f); },
-                        [](int v){
-                        video::SColorf ambient = irr_driver->getAmbientLight();
-                        ambient.setColorComponentValue(1, v / 255.f);
-                        irr_driver->setAmbientLight(ambient); }
-                    );
-                    dsd->setSliderHook("blue_slider", 0, 255,
-                        [](){ return int(irr_driver->getAmbientLight().b * 255.f); },
-                        [](int v){
-                        video::SColorf ambient = irr_driver->getAmbientLight();
-                        ambient.setColorComponentValue(2, v / 255.f);
-                        irr_driver->setAmbientLight(ambient); }
-                    );
-                    dsd->setSliderHook("ssao_radius", 0, 100,
-                        [](){ return int(irr_driver->getSSAORadius() * 10.f); },
-                        [](int v){irr_driver->setSSAORadius(v / 10.f); }
-                    );
-                    dsd->setSliderHook("ssao_k", 0, 100,
-                        [](){ return int(irr_driver->getSSAOK() * 10.f); },
-                        [](int v){irr_driver->setSSAOK(v / 10.f); }
-                    );
-                    dsd->setSliderHook("ssao_sigma", 0, 100,
-                        [](){ return int(irr_driver->getSSAOSigma() * 10.f); },
-                        [](int v){irr_driver->setSSAOSigma(v / 10.f); }
-                    );
-#endif
-                }
-                else if (cmdID == DEBUG_ADJUST_LIGHTS)
-                {
-#if !defined(__APPLE__)
-                    // Some sliders use multipliers because the spinner widget
-                    // only supports integers
-                    DebugSliderDialog *dsd = new DebugSliderDialog();
-                    dsd->changeLabel("Red", "Red (x10)");
-                    dsd->setSliderHook("red_slider", 0, 100,
-                        []()
-                        {
-                            return int(findNearestLight()->getColor().X * 100);
-                        },
-                        [](int intensity)
-                        {
-                            LightNode* nearest = findNearestLight();
-                            core::vector3df color = nearest->getColor();
-                            nearest->setColor(intensity / 100.0f, color.Y, color.Z);
-                        }
-                    );
-                    dsd->changeLabel("Green", "Green (x10)");
-                    dsd->setSliderHook("green_slider", 0, 100,
-                        []()
-                        {
-                            return int(findNearestLight()->getColor().Y * 100);
-                        },
-                        [](int intensity)
-                        {
-                            LightNode* nearest = findNearestLight();
-                            core::vector3df color = nearest->getColor();
-                            nearest->setColor(color.X, intensity / 100.0f, color.Z);
-                        }
-                    );
-                    dsd->changeLabel("Blue", "Blue (x10)");
-                    dsd->setSliderHook("blue_slider", 0, 100,
-                        []()
-                        {
-                            return int(findNearestLight()->getColor().Z * 100);
-                        },
-                        [](int intensity)
-                        {
-                            LightNode* nearest = findNearestLight();
-                            core::vector3df color = nearest->getColor();
-                            nearest->setColor(color.X, color.Y, intensity / 100.0f);
-                        }
-                    );
-                    dsd->changeLabel("SSAO radius", "energy (x10)");
-                    dsd->setSliderHook("ssao_radius", 0, 100,
-                        []()     { return int(findNearestLight()->getEnergy() * 10);  },
-                        [](int v){        findNearestLight()->setEnergy(v / 10.0f); }
-                    );
-                    dsd->changeLabel("SSAO k", "radius");
-                    dsd->setSliderHook("ssao_k", 0, 100,
-                        []()     { return int(findNearestLight()->getRadius());  },
-                        [](int v){        findNearestLight()->setRadius(float(v)); }
-                    );
-                    dsd->changeLabel("SSAO Sigma", "[None]");
-#endif
-                }
-                else if (cmdID == DEBUG_SCRIPT_CONSOLE)
-                {
-                    ScriptingConsole* console = new ScriptingConsole();
-                }
+                return handleContextMenuAction(cmdID);
             }
-
-            return false;   // event has been handled
+            return false;
         }
     }
     return true;    // continue event handling
 }   // onEvent
+
+// ----------------------------------------------------------------------------
+
+bool handleStaticAction(int key)
+{
+    if (key == KEY_F1)
+    {
+        handleContextMenuAction(DEBUG_GUI_CAM_FREE);
+    }
+    else if (key == KEY_F2)
+    {
+        handleContextMenuAction(DEBUG_GUI_CAM_NORMAL);
+    }
+    // TODO: create more keyboard shortcuts
+
+    return false;
+}
 
 // ----------------------------------------------------------------------------
 /** Returns if the debug menu is visible.

@@ -31,8 +31,6 @@
 #include "items/powerup.hpp"
 #include "karts/abstract_kart.hpp"
 #include "karts/kart_properties.hpp"
-#include "karts/player_difficulty.hpp"
-#include "tracks/terrain_info.hpp"
 #include "utils/no_copy.hpp"
 
 class btKart;
@@ -52,6 +50,7 @@ class Skidding;
 class SkidMarks;
 class SlipStream;
 class Stars;
+class TerrainInfo;
 
 /** The main kart class. All type of karts are of this object, but with
  *  different controllers. The controllers are what turn a kart into a
@@ -149,7 +148,7 @@ private:
 
     /** True if fire button was pushed and not released */
     bool         m_fire_clicked;
-    
+
     /** Counter which is used for displaying wrong way message after a delay */
     float        m_wrongway_counter;
 
@@ -173,10 +172,6 @@ private:
     /** The shadow of a kart. */
     Shadow          *m_shadow;
 
-    /** If a kart is flying, the shadow is disabled (since it is
-     *  stuck to the kart, i.e. the shadow would be flying, too). */
-    bool             m_shadow_enabled;
-
     ParticleEmitter *m_sky_particles_emitter;
 
     /** All particle effects. */
@@ -187,12 +182,6 @@ private:
 
     /** Handles all slipstreaming. */
     SlipStream      *m_slipstream;
-
-    /** Rotation compared to the start position, same for all wheels */
-    float           m_wheel_rotation;
-
-    /** Rotation change in the last time delta, same for all wheels */
-    float           m_wheel_rotation_dt;
 
     /** The skidmarks object for this kart. */
     SkidMarks      *m_skidmarks;
@@ -210,6 +199,7 @@ private:
     SFXBase      *m_engine_sound;
     SFXBase      *m_crash_sound;
     SFXBase      *m_terrain_sound;
+    SFXBase      *m_nitro_sound;
     /** A pointer to the previous terrain sound needs to be saved so that an
      *  'older' sfx can be finished and an abrupt end of the sfx is avoided. */
     SFXBase      *m_previous_terrain_sound;
@@ -237,7 +227,7 @@ private:
 public:
                    Kart(const std::string& ident, unsigned int world_kart_id,
                         int position, const btTransform& init_transform,
-                        const PlayerDifficulty *difficulty);
+                        PerPlayerDifficulty difficulty);
     virtual       ~Kart();
     virtual void   init(RaceManager::KartType type);
     virtual void   kartIsInRestNow();
@@ -245,6 +235,8 @@ public:
                                   const btQuaternion& off_rotation);
     virtual void   createPhysics    ();
     virtual void   updateWeight     ();
+    virtual float  getSpeedForTurnRadius(float radius) const;
+    virtual float  getMaxSteerAngle(float speed) const;
     virtual bool   isInRest         () const;
     virtual void   applyEngineForce (float force);
 
@@ -260,6 +252,8 @@ public:
                                float fade_in_time);
     virtual float getSpeedIncreaseTimeLeft(unsigned int category) const;
     virtual void  collectedItem(Item *item, int random_attachment);
+    virtual float getStartupBoost() const;
+
     virtual const Material *getMaterial() const;
     virtual const Material *getLastMaterial() const;
     /** Returns the pitch of the terrain depending on the heading. */
@@ -340,15 +334,12 @@ public:
     /** Returns the time till full steering is reached for this kart.
      *  \param steer Current steer value (must be >=0), on which the time till
      *         full steer depends. */
-    virtual float getTimeFullSteer(float steer) const
-    {
-        return m_kart_properties->getTimeFullSteer(steer);
-    }   // getTimeFullSteer
+    virtual float getTimeFullSteer(float steer) const;
     // ------------------------------------------------------------------------
     /** Returns the maximum steering angle for this kart, which depends on the
      *  speed. */
     virtual float getMaxSteerAngle () const
-                    { return m_kart_properties->getMaxSteerAngle(getSpeed()); }
+                    { return getMaxSteerAngle(getSpeed()); }
     // ------------------------------------------------------------------------
     /** Returns the skidding object for this kart (which can be used to query
      *  skidding related values). */

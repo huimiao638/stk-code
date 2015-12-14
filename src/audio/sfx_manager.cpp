@@ -257,7 +257,8 @@ void SFXManager::queueCommand(SFXCommand *command)
         race_manager->getMinorMode() != RaceManager::MINOR_MODE_CUTSCENE)
     {
         if(command->m_command==SFX_POSITION || command->m_command==SFX_LOOP ||
-           command->m_command==SFX_SPEED                                       )
+           command->m_command==SFX_SPEED    || 
+           command->m_command==SFX_SPEED_POSITION                               )
         {
             delete command;
             static int count_messages = 0;
@@ -377,7 +378,10 @@ void* SFXManager::mainLoop(void *obj)
         case SFX_MUSIC_DEFAULT_VOLUME:
         {
             current->m_music_information->setDefaultVolume();
+            break;
         }
+        case SFX_CREATE_SOURCE:
+            current->m_sfx->init(); break;
         default: assert("Not yet supported.");
         }
         delete current;
@@ -977,7 +981,8 @@ SFXBase* SFXManager::quickSound(const std::string &sound_type)
     else
     {
         SFXBase *base_sound = sound->second;
-        base_sound->play();
+        if (base_sound->getStatus() != SFXBase::SFX_PLAYING)
+            base_sound->play();
         return base_sound;
     }
 

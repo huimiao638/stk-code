@@ -20,6 +20,7 @@
 
 #include "config/user_config.hpp"
 #include "io/file_manager.hpp"
+#include "graphics/central_settings.hpp"
 #include "graphics/irr_driver.hpp"
 #include "graphics/particle_emitter.hpp"
 #include "graphics/particle_kind.hpp"
@@ -120,9 +121,13 @@ KartGFX::~KartGFX()
         if(m_all_emitters[i])
             delete m_all_emitters[i];
     }   // for i < KGFX_COUNT
-    m_nitro_light->drop();
-    m_skidding_light_1->drop();
-    m_skidding_light_2->drop();
+    
+    if (CVS->isGLSL())
+    {
+        m_nitro_light->drop();
+        m_skidding_light_1->drop();
+        m_skidding_light_2->drop();
+    }
 
 }   // ~KartGFX
 
@@ -321,8 +326,7 @@ void KartGFX::updateTerrain(const ParticleKind *pk)
     if (skidding > 1.0f && on_ground)
         rate = fabsf(m_kart->getControls().m_steer) > 0.8 ? skidding - 1 : 0;
     else if (speed >= 0.5f && on_ground)
-        rate = speed/m_kart->getKartProperties()->getMaxSpeed() *
-               m_kart->getPlayerDifficulty()->getMaxSpeed();
+        rate = speed/m_kart->getKartProperties()->getEngineMaxSpeed();
     else
     {
         pe->setCreationRateAbsolute(0);
@@ -350,11 +354,10 @@ void KartGFX::update(float dt)
 }  // update
 
 // ----------------------------------------------------------------------------
-/** Updates nitro dependent particle effects (and box sizes).
+/** Updates nitro dependent particle effects.
  *  \param nitro_frac Nitro fraction/
- *  \param new_size New size of the box in which new particles are emitted.
  */
-void KartGFX::updateNitroGraphics(float nitro_frac, float new_size)
+void KartGFX::updateNitroGraphics(float nitro_frac)
 {
     // Upate particle effects (creation rate, and emitter size
     // depending on speed)
@@ -375,11 +378,6 @@ void KartGFX::updateNitroGraphics(float nitro_frac, float new_size)
         setCreationRateAbsolute(KartGFX::KGFX_NITROSMOKE2, 0);
         m_nitro_light->setVisible(false);
     }
-    resizeBox(KartGFX::KGFX_NITRO1,      new_size);
-    resizeBox(KartGFX::KGFX_NITRO2,      new_size);
-    resizeBox(KartGFX::KGFX_NITROSMOKE1, new_size);
-    resizeBox(KartGFX::KGFX_NITROSMOKE2, new_size);
-    resizeBox(KartGFX::KGFX_ZIPPER,      new_size);
 
 }  // updateGraphics
 

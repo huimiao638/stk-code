@@ -31,6 +31,7 @@
 #include "input/device_manager.hpp"
 #include "input/keyboard_device.hpp"
 #include "items/projectile_manager.hpp"
+#include "karts/controller/battle_ai.hpp"
 #include "karts/controller/player_controller.hpp"
 #include "karts/controller/end_controller.hpp"
 #include "karts/controller/skidding_ai.hpp"
@@ -123,6 +124,7 @@ World::World() : WorldStatus(), m_clear_color(255,100,101,140)
     m_schedule_tutorial  = false;
     m_is_network_world   = false;
     m_weather            = NULL;
+    m_force_disable_fog  = false;
 
     m_stop_music_when_dialog_open = true;
 
@@ -183,12 +185,10 @@ void World::init()
                                : race_manager->getKartIdent(i);
         int local_player_id  = race_manager->getKartLocalPlayerId(i);
         int global_player_id = race_manager->getKartGlobalPlayerId(i);
-        const PlayerDifficulty *player_difficulty =
-            stk_config->getPlayerDifficulty(race_manager->getPlayerDifficulty(i));
         AbstractKart* newkart = createKart(kart_ident, i, local_player_id,
                                    global_player_id,
                                    race_manager->getKartType(i),
-                                   player_difficulty);
+                                   race_manager->getPlayerDifficulty(i));
         m_karts.push_back(newkart);
         m_track->adjustForFog(newkart->getNode());
 
@@ -210,8 +210,6 @@ void World::init()
         m_weather = new Weather(m_track->getWeatherLightning(),
                           m_track->getWeatherSound());
     }
-
-    m_script_engine->compileLoadedScripts();
 }   // init
 
 //-----------------------------------------------------------------------------
@@ -301,12 +299,12 @@ void World::createRaceGUI()
 AbstractKart *World::createKart(const std::string &kart_ident, int index,
                                 int local_player_id, int global_player_id,
                                 RaceManager::KartType kart_type,
-                                const PlayerDifficulty *difficulty)
+                                PerPlayerDifficulty difficulty)
 {
     int position           = index+1;
-    btTransform init_pos   = m_track->getStartTransform(index);
+    btTransform init_pos   = getStartTransform(index);
     AbstractKart *new_kart = new Kart(kart_ident, index, position, init_pos,
-            difficulty);
+                                      difficulty);
     new_kart->init(race_manager->getKartType(index));
     Controller *controller = NULL;
     switch(kart_type)
@@ -337,6 +335,14 @@ AbstractKart *World::createKart(const std::string &kart_ident, int index,
 }   // createKart
 
 //-----------------------------------------------------------------------------
+/** Returns the start coordinates for a kart with a given index.
+ *  \param index Index of kart ranging from 0 to kart_num-1. */
+const btTransform &World::getStartTransform(int index)
+{
+    return m_track->getStartTransform(index);
+}   // getStartTransform
+
+//-----------------------------------------------------------------------------
 /** Creates an AI controller for the kart.
  *  \param kart The kart to be controlled by an AI.
  */
@@ -344,12 +350,18 @@ Controller* World::loadAIController(AbstractKart *kart)
 {
     Controller *controller;
     int turn=0;
+
+    if(race_manager->getMinorMode()==RaceManager::MINOR_MODE_3_STRIKES)
+        turn=1;
     // If different AIs should be used, adjust turn (or switch randomly
     // or dependent on difficulty)
     switch(turn)
     {
         case 0:
             controller = new SkiddingAI(kart);
+            break;
+        case 1:
+            controller = new BattleAI(kart);
             break;
         default:
             Log::warn("[World]", "Unknown AI, using default.");
@@ -740,6 +752,12 @@ void World::moveKartTo(AbstractKart* kart, const btTransform &transform)
     kart->setRotation(pos.getRotation());
 
     kart->getBody()->setCenterOfMassTransform(pos);
+    // The raycast to determine the terrain underneath the kart is done from
+    // the centre point of the 4 wheel positions. After a rescue, the wheel
+    // positions need to be updated (otherwise the raycast will be done from
+    // the previous position, which might be the position that triggered
+    // the rescue in the first place).
+    kart->getVehicle()->updateAllWheelPositions();
 
     // Project kart to surface of track
     // This will set the physics transform
@@ -941,7 +959,7 @@ void World::update(float dt)
         m_physics->update(dt);
     }
 
-    PROFILER_PUSH_CPU_MARKER("World::update (AI)", 0x40, 0x7F, 0x00);
+    PROFILER_PUSH_CPU_MARKER("World::update (Kart::upate)", 0x40, 0x7F, 0x00);
     const int kart_amount = (int)m_karts.size();
     for (int i = 0 ; i < kart_amount; ++i)
     {

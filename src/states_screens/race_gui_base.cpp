@@ -22,11 +22,13 @@
 
 #include "audio/music_manager.hpp"
 #include "config/user_config.hpp"
-#include "graphics/camera.hpp"
 #include "graphics/2dutils.hpp"
+#include "graphics/camera.hpp"
+#include "graphics/central_settings.hpp"
 #include "graphics/irr_driver.hpp"
 #include "graphics/material.hpp"
 #include "graphics/material_manager.hpp"
+#include "graphics/post_processing.hpp"
 #include "graphics/referee.hpp"
 #include "guiengine/scalable_font.hpp"
 #include "io/file_manager.hpp"
@@ -57,7 +59,6 @@ namespace irr
 RaceGUIBase::RaceGUIBase()
 {
     m_ignore_unimportant_messages = false;
-    m_lightning             = 0.0f;
     m_max_font_height       = GUIEngine::getFontHeight() + 10;
     m_small_font_max_height = GUIEngine::getSmallFontHeight() + 5;
     //I18N: as in "ready, set, go", shown at the beginning of the race
@@ -97,10 +98,6 @@ RaceGUIBase::RaceGUIBase()
     m_gauge_goal            = irr_driver->getTexture(file_manager->getAsset(FileManager::GUI,"gauge_goal.png" ));
     m_dist_show_overlap     = 2;
     m_icons_inertia         = 2;
-
-
-    //I18N: When some GlobalPlayerIcons are hidden, write "Top 10" to show it
-    m_string_top            = _("Top %i");
 
     m_referee               = NULL;
 }   // RaceGUIBase
@@ -343,7 +340,6 @@ void RaceGUIBase::drawPowerupIcons(const AbstractKart* kart,
  */
 void RaceGUIBase::renderGlobal(float dt)
 {
-    if (m_lightning > 0.0f) m_lightning -= dt;
 
 }   // renderGlobal
 
@@ -414,62 +410,7 @@ void RaceGUIBase::preRenderCallback(const Camera *camera)
 // ----------------------------------------------------------------------------
 void RaceGUIBase::renderPlayerView(const Camera *camera, float dt)
 {
-    const core::recti &viewport = camera->getViewport();
 
-#if 0
-    if (m_lightning > 0.0f)
-    {
-        GLint glviewport[4];
-        glviewport[0] = viewport.UpperLeftCorner.X;
-        glviewport[1] = viewport.UpperLeftCorner.Y;
-        glviewport[2] = viewport.LowerRightCorner.X;
-        glviewport[3] = viewport.LowerRightCorner.Y;
-        //glGetIntegerv(GL_VIEWPORT, glviewport);
-
-        if (!irr::video::useCoreContext)
-            glDisable(GL_TEXTURE_2D);
-        glDisable(GL_DEPTH_TEST);
-        glDisable(GL_BLEND);
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_ONE, GL_ONE);
-        glColor4f(0.7f*m_lightning, 0.7f*m_lightning, 0.7f*std::min(1.0f, m_lightning*1.5f), 1.0f);
-        glEnable(GL_COLOR_MATERIAL);
-        glDisable(GL_CULL_FACE);
-        glBegin(GL_QUADS);
-
-        glVertex3d(glviewport[0],glviewport[1],0);
-        glVertex3d(glviewport[0],glviewport[3],0);
-        glVertex3d(glviewport[2],glviewport[3],0);
-        glVertex3d(glviewport[2],glviewport[1],0);
-        glEnd();
-        if (!irr::video::useCoreContext)
-            glEnable(GL_TEXTURE_2D);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    }
-    else
-    {
-        GLint glviewport[4];
-        glGetIntegerv(GL_VIEWPORT, glviewport);
-
-        glDisable(GL_TEXTURE_2D);
-        glDisable(GL_DEPTH_TEST);
-        glDisable(GL_BLEND);
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        glColor4f(0.0f, 0.0f, 0.0f, 0.4f);
-
-        glEnable(GL_COLOR_MATERIAL);
-        glDisable(GL_CULL_FACE);
-        glBegin(GL_QUADS);
-
-        glVertex3d(glviewport[0],glviewport[1],0);
-        glVertex3d(glviewport[0],glviewport[3],0);
-        glVertex3d(glviewport[2],glviewport[3],0);
-        glVertex3d(glviewport[2],glviewport[1],0);
-        glEnd();
-        glEnable(GL_BLEND);
-    }
-#endif
 }   // renderPlayerView
 
 
@@ -812,7 +753,8 @@ void RaceGUIBase::drawGlobalPlayerIcons(int bottom_margin)
             static video::SColor color = video::SColor(255, 255, 255, 255);
             pos_top.LowerRightCorner   = pos_top.UpperLeftCorner;
 
-            font->draw(StringUtils::insertValues( m_string_top, position-1 ), pos_top, color);
+            //I18N: When some GlobalPlayerIcons are hidden, write "Top 10" to show it
+            font->draw(_("Top %i", position-1 ), pos_top, color);
 
             break;
         }

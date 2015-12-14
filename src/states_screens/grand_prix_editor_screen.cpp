@@ -40,8 +40,9 @@ DEFINE_SCREEN_SINGLETON( GrandPrixEditorScreen );
 
 
 // -----------------------------------------------------------------------------
-GrandPrixEditorScreen::GrandPrixEditorScreen()
-    : Screen("gpeditor.stkgui"), m_selection(NULL), m_gpgroup(GrandPrixData::GP_NONE)
+GrandPrixEditorScreen::GrandPrixEditorScreen() 
+                     : Screen("grand_prix_editor.stkgui"), m_selection(NULL),
+                       m_gpgroup(GrandPrixData::GP_NONE)
 {
 }
 
@@ -54,8 +55,8 @@ void GrandPrixEditorScreen::beforeAddingWidget()
     tabs->clearAllChildren();
     for (int i = 0; i < GrandPrixData::GP_GROUP_COUNT; i++)
     {
-        tabs->addTextChild(getGroupName((enum GrandPrixData::GPGroupType)i),
-            StringUtils::toString(i));
+        core::stringw label = getGroupName((enum GrandPrixData::GPGroupType)i);
+        tabs->addTextChild(label.c_str(), StringUtils::toString(i));
     }
 }
 
@@ -291,6 +292,7 @@ void GrandPrixEditorScreen::onNewGPWithName(const stringw& newName)
     {
         m_selection->setName(newName);
         m_selection->writeToFile();
+        setSelection(grand_prix_manager->getGrandPrix(m_selection->getId()));
     }
     else if (m_action == "new")
     {
@@ -316,7 +318,7 @@ void GrandPrixEditorScreen::onConfirm()
 }
 
 // ----------------------------------------------------------------------------
-const wchar_t* GrandPrixEditorScreen::getGroupName(enum GrandPrixData::GPGroupType group)
+const core::stringw GrandPrixEditorScreen::getGroupName(enum GrandPrixData::GPGroupType group)
 {
     switch (group)
     {

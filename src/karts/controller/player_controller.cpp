@@ -37,6 +37,7 @@
 #include "network/network_world.hpp"
 #include "race/history.hpp"
 #include "states_screens/race_gui_base.hpp"
+#include "tracks/battle_graph.hpp"
 #include "utils/constants.hpp"
 #include "utils/log.hpp"
 #include "utils/translation.hpp"
@@ -94,6 +95,7 @@ void PlayerController::reset()
     m_prev_nitro   = false;
     m_sound_schedule = false;
     m_penalty_time = 0;
+    m_current_node = BattleGraph::UNKNOWN_POLY;
 }   // reset
 
 // ----------------------------------------------------------------------------
@@ -254,7 +256,7 @@ void PlayerController::steer(float dt, int steer_val)
     // change speed is used.
     const float STEER_CHANGE = ( (steer_val<=0 && m_controls->m_steer<0) ||
                                  (steer_val>=0 && m_controls->m_steer>0)   )
-                     ? dt/m_kart->getKartProperties()->getTimeResetSteer()
+                     ? dt/m_kart->getKartProperties()->getTurnTimeResetSteer()
                      : dt/m_kart->getTimeFullSteer(fabsf(m_controls->m_steer));
     if (steer_val < 0)
     {
@@ -321,6 +323,24 @@ void PlayerController::update(float dt)
     if (!history->replayHistory())
         steer(dt, m_steer_val);
 
+
+    // look backward when the player requests or
+    // if automatic reverse camera is active
+    if (m_camera->getMode() != Camera::CM_FINAL)
+    {
+        if (m_controls->m_look_back || (UserConfigParams::m_reverse_look_threshold > 0 &&
+            m_kart->getSpeed() < -UserConfigParams::m_reverse_look_threshold))
+        {
+            m_camera->setMode(Camera::CM_REVERSE);
+        }
+        else
+        {
+            if (m_camera->getMode() == Camera::CM_REVERSE)
+                m_camera->setMode(Camera::CM_NORMAL);
+        }
+    }
+
+
     if (World::getWorld()->isStartPhase())
     {
         if (m_controls->m_accel || m_controls->m_brake ||
@@ -336,9 +356,9 @@ void PlayerController::update(float dt)
                 if (m)
                 {
                     m->addMessage(_("Penalty time!!"), m_kart, 2.0f,
-                                  video::SColor(255, 255, 128, 0));
+                                  GUIEngine::getSkin()->getColor("font::top"));
                     m->addMessage(_("Don't accelerate before go"), m_kart, 2.0f,
-                                  video::SColor(255, 210, 100, 50));
+                                  GUIEngine::getSkin()->getColor("font::normal"));
                 }
                 m_bzzt_sound->play();
 
@@ -358,21 +378,7 @@ void PlayerController::update(float dt)
         return;
     }
 
-    // look backward when the player requests or
-    // if automatic reverse camera is active
-    if (m_camera->getMode() != Camera::CM_FINAL)
-    {
-        if (m_controls->m_look_back || (UserConfigParams::m_reverse_look_threshold>0 &&
-            m_kart->getSpeed()<-UserConfigParams::m_reverse_look_threshold))
-        {
-            m_camera->setMode(Camera::CM_REVERSE);
-        }
-        else
-        {
-            if (m_camera->getMode() == Camera::CM_REVERSE)
-                m_camera->setMode(Camera::CM_NORMAL);
-        }
-    }
+
 
     // We can't restrict rescue to fulfil isOnGround() (which would be more like
     // MK), since e.g. in the City track it is possible for the kart to end

@@ -106,9 +106,9 @@ void ProfileWorld::setProfileModeLaps(int laps)
 AbstractKart *ProfileWorld::createKart(const std::string &kart_ident, int index,
                                        int local_player_id, int global_player_id,
                                        RaceManager::KartType type,
-                                       const PlayerDifficulty *difficulty)
+                                       PerPlayerDifficulty difficulty)
 {
-    btTransform init_pos   = m_track->getStartTransform(index);
+    btTransform init_pos   = getStartTransform(index);
 
     Kart *new_kart         = new KartWithStats(kart_ident,
                                                /*world kart id*/ index,

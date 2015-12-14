@@ -57,8 +57,6 @@ Plunger::Plunger(AbstractKart *kart)
 
     btTransform kart_transform = kart->getAlignedTransform();
     btMatrix3x3 kart_rotation = kart_transform.getBasis();
-    // The current forward vector is rotation*(0,0,1), or:
-    btVector3 forward(kart_rotation.getColumn(2));
 
     float heading =kart->getHeading();
     float pitch  = kart->getTerrainPitch(heading);
@@ -178,8 +176,7 @@ bool Plunger::hit(AbstractKart *kart, PhysicalObject *obj)
     }
     else
     {
-        m_keep_alive = m_owner->getKartProperties()->getRubberBandDuration() *
-                       m_owner->getPlayerDifficulty()->getRubberBandDuration();
+        m_keep_alive = m_owner->getKartProperties()->getPlungerBandDuration();
 
         // Make this object invisible by placing it faaar down. Not that if this
         // objects is simply removed from the scene graph, it might be auto-deleted

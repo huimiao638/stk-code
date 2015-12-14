@@ -91,7 +91,7 @@ private:
      *  at load time, it must be loaded elsewhere. This is used to store
      *  material settings for font textures, without loading fonts for
      *  languages that might not be needed at all. */
-    bool             m_lazy_load;
+    bool             m_dont_load_texture;
 
     /** Name of a special sfx to play when a kart is on this terrain, or
      *  "" if no special sfx exists. */
@@ -155,6 +155,11 @@ private:
     bool             m_ignore;
 
     bool             m_fog;
+
+    /** Either ' ' (no mirroring), 'U' or 'V' if a texture needs to be 
+     *  mirrored when driving in reverse. Typically used for arrows indicating
+     *  the direction. */
+    char             m_mirror_axis_when_reverse;
 
     ParticleKind*    m_particles_effects[EMIT_KINDS_COUNT];
 
@@ -262,10 +267,10 @@ public:
     /** Returns the ITexture associated with this material. */
     video::ITexture *getTexture() const
     {
-        // Note that atm lazy load means that the textures are not loaded
-        // via the material. So getTexture should only get called for non
-        // lazily loaded textures (used atm for font textures.
-        assert(!m_lazy_load);
+        // Note that dont load means that the textures are not loaded
+        // via the material. So getTexture should only get called for
+		// automatically loaded textures (used atm for font textures).
+        assert(!m_dont_load_texture);
         return m_texture;
     }   // getTexture
     // ------------------------------------------------------------------------
@@ -372,6 +377,10 @@ public:
     float getZipperMinSpeed() const { return m_zipper_min_speed; }
     // ------------------------------------------------------------------------
     ShaderType getShaderType() const { return m_shader_type; }
+    void setShaderType(ShaderType st) { m_shader_type = st; }
+    // ------------------------------------------------------------------------
+    /** True if this texture should have the U coordinates mirrored. */
+    char getMirrorAxisInReverse() const { return m_mirror_axis_when_reverse; }
     // ------------------------------------------------------------------------
 } ;
 

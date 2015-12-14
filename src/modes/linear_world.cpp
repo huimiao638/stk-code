@@ -173,7 +173,15 @@ void LinearWorld::update(float dt)
         // Nothing to do for karts that are currently being
         // rescued or eliminated
         if(kart->getKartAnimation()) continue;
-
+        // If the kart is off road, and 'flying' over a reset plane
+        // don't adjust the distance of the kart, to avoid a jump
+        // in the position of the kart (e.g. while falling the kart
+        // might get too close to another part of the track, shortly
+        // jump to position one, then on reset fall back to last)
+        if (!kart_info.getTrackSector()->isOnRoad() &&
+            (!kart->getMaterial() ||
+              kart->getMaterial()->isDriveReset())     )
+            continue;
         kart_info.getTrackSector()->update(kart->getFrontXYZ());
         kart_info.m_overall_distance = kart_info.m_race_lap
                                      * m_track->getTrackLength()
@@ -274,7 +282,7 @@ void LinearWorld::newLap(unsigned int kart_index)
     if (raceHasLaps() && kart_info.m_race_lap+1 == lap_count)
     {
         m_race_gui->addMessage(_("Final lap!"), kart,
-                               3.0f, video::SColor(255, 210, 100, 50), true);
+                               3.0f, GUIEngine::getSkin()->getColor("font::normal"), true);
         if(!m_last_lap_sfx_played && lap_count > 1)
         {
             if (UserConfigParams::m_music)
@@ -301,7 +309,7 @@ void LinearWorld::newLap(unsigned int kart_index)
              kart_info.m_race_lap+1 < lap_count)
     {
         m_race_gui->addMessage(_("Lap %i", kart_info.m_race_lap+1),
-                               kart, 3.0f, video::SColor(255, 210, 100, 50),
+                               kart, 3.0f, GUIEngine::getSkin()->getColor("font::normal"),
                                true);
     }
 

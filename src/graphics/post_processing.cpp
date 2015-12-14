@@ -27,6 +27,7 @@
 #include "graphics/shaders.hpp"
 #include "graphics/shared_gpu_objects.hpp"
 #include "graphics/stk_mesh_scene_node.hpp"
+#include "graphics/weather.hpp"
 #include "io/file_manager.hpp"
 #include "karts/abstract_kart.hpp"
 #include "karts/kart_model.hpp"
@@ -332,25 +333,32 @@ public:
     }   // render
 };   // BloomShader
 
+static video::ITexture *lensDustTex = 0;
+
 // ============================================================================
-class BloomBlendShader : public TextureShader<BloomBlendShader, 3>
+class BloomBlendShader : public TextureShader<BloomBlendShader, 4>
 {
 public:
     BloomBlendShader()
     {
+		if (!lensDustTex)
+			lensDustTex = irr_driver->getTexture(FileManager::TEXTURE, "gfx_lensDust_a.png");
+
         loadProgram(OBJECT, GL_VERTEX_SHADER, "screenquad.vert",
                             GL_FRAGMENT_SHADER, "bloomblend.frag");
         assignUniforms();
         assignSamplerNames(0, "tex_128", ST_BILINEAR_FILTERED,
                            1, "tex_256", ST_BILINEAR_FILTERED,
-                           2, "tex_512", ST_BILINEAR_FILTERED);
+                           2, "tex_512", ST_BILINEAR_FILTERED,
+						   3, "tex_dust", ST_BILINEAR_FILTERED);
     }   // BloomBlendShader
     // ------------------------------------------------------------------------
     void render()
     {
         setTextureUnits(irr_driver->getRenderTargetTexture(RTT_BLOOM_128),
                         irr_driver->getRenderTargetTexture(RTT_BLOOM_256),
-                        irr_driver->getRenderTargetTexture(RTT_BLOOM_512));
+                        irr_driver->getRenderTargetTexture(RTT_BLOOM_512),
+						getTextureGLuint(lensDustTex));
         drawFullScreenEffect();
     }   // render
 };   // BloomBlendShader
@@ -812,6 +820,24 @@ public:
 };   // SunLightShader
 
 // ============================================================================
+class LightningShader : public TextureShader<LightningShader, 1, 
+                                             core::vector3df>
+{
+public:
+    LightningShader()
+    {
+        loadProgram(OBJECT, GL_VERTEX_SHADER, "screenquad.vert",
+                            GL_FRAGMENT_SHADER, "lightning.frag");
+        assignUniforms("intensity");
+    }   // LightningShader
+    // ------------------------------------------------------------------------
+    void render(core::vector3df intensity)
+    {
+        drawFullScreenEffect(intensity);
+    }   // render
+};   // LightningShader
+
+// ============================================================================
 
 PostProcessing::PostProcessing(IVideoDriver* video_driver)
 {
@@ -987,8 +1013,7 @@ static void renderBloom(GLuint in)
 }   // renderBloom
 
 // ----------------------------------------------------------------------------
-void PostProcessing::renderEnvMap(const float *bSHCoeff, const float *gSHCoeff,
-                                  const float *rSHCoeff, GLuint skybox)
+void PostProcessing::renderEnvMap(GLuint skybox)
 {
     glDisable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
@@ -1224,8 +1249,6 @@ void PostProcessing::renderHorizontalBlur(const FrameBuffer &in_fbo,
 {
     assert(in_fbo.getWidth() == auxiliary.getWidth() &&
            in_fbo.getHeight() == auxiliary.getHeight());
-    float inv_width  = 1.0f / in_fbo.getWidth();
-    float inv_height = 1.0f / in_fbo.getHeight();
 
     auxiliary.bind();
     Gaussian6HBlurShader::getInstance()->render(in_fbo, in_fbo.getWidth(),
@@ -1244,8 +1267,6 @@ void PostProcessing::renderGaussian17TapBlur(const FrameBuffer &in_fbo,
            in_fbo.getHeight() == auxiliary.getHeight());
     if (CVS->supportsComputeShadersFiltering())
         glMemoryBarrier(GL_FRAMEBUFFER_BARRIER_BIT);
-    float inv_width = 1.0f / in_fbo.getWidth();
-    float inv_height = 1.0f / in_fbo.getHeight();
     {
         if (!CVS->supportsComputeShadersFiltering())
         {
@@ -1401,6 +1422,18 @@ void PostProcessing::applyMLAA()
     // Done.
     glDisable(GL_STENCIL_TEST);
 }   // applyMLAA
+
+// ----------------------------------------------------------------------------
+void PostProcessing::renderLightning(core::vector3df intensity)
+{
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_ONE, GL_ONE);
+    glBlendEquation(GL_FUNC_ADD);
+       
+    LightningShader::getInstance()->render(intensity);
+    
+    glDisable(GL_BLEND);
+}
 
 // ----------------------------------------------------------------------------
 /** Render the post-processed scene */
@@ -1599,6 +1632,22 @@ FrameBuffer *PostProcessing::render(scene::ICameraSceneNode * const camnode,
         {
             renderMotionBlur(0, *in_fbo, *out_fbo);
             std::swap(in_fbo, out_fbo);
+        }
+        PROFILER_POP_CPU_MARKER();
+    }
+    
+    // Handle lightning rendering
+    {
+        PROFILER_PUSH_CPU_MARKER("- Lightning", 0xFF, 0x00, 0x00);
+        ScopedGPUTimer Timer(irr_driver->getGPUTimer(Q_LIGHTNING));
+        if (World::getWorld() != NULL)
+        {
+            Weather* m_weather = World::getWorld()->getWeather();
+            
+            if (m_weather != NULL && m_weather->shouldLightning())
+            {
+                renderLightning(m_weather->getIntensity());
+            }
         }
         PROFILER_POP_CPU_MARKER();
     }

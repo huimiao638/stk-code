@@ -1,6 +1,6 @@
 # root CMakeLists for the SuperTuxKart project
 project(SuperTuxKart)
-set(PROJECT_VERSION "0.8.1")
+set(PROJECT_VERSION "0.9.1")
 
 cmake_minimum_required(VERSION 2.8.4)
 if(NOT (CMAKE_MAJOR_VERSION VERSION_LESS 3))
@@ -15,12 +15,12 @@ if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "STKRelease")
 endif()
 
-option(USE_WIIUSE "Support for wiimote input devices" ON)
 option(USE_FRIBIDI "Support for right-to-left languages" ON)
 option(CHECK_ASSETS "Check if assets are installed in ../stk-assets" ON)
 option(USE_SYSTEM_ANGELSCRIPT "Use system angelscript instead of built-in angelscript. If you enable this option, make sure to use a compatible version." OFF)
+option(ENABLE_NETWORK_MULTIPLAYER "Enable network multiplayer. This will replace the online profile GUI in the main menu with the network multiplayer GUI" OFF)
 
-if(MSVC)
+if(MSVC AND (MSVC_VERSION LESS 1900))
     # Normally hide the option to build wiiuse on VS, since it depends
     # on the installation of the Windows DDK (Driver Developer Kit),
     # which also needs an absolute path :(
@@ -31,7 +31,9 @@ else()
 endif()
 
 if(MINGW OR CYGWIN)
-    set(USE_WIIUSE OFF)
+    option(USE_WIIUSE "Support for wiimote input devices" OFF)
+else()
+    option(USE_WIIUSE "Support for wiimote input devices" ON)
 endif()
 
 if(UNIX AND NOT APPLE)
@@ -123,9 +125,15 @@ endif()
 
 
 # Build the angelscript library if not in system
-find_package(Angelscript)
-if(USE_SYSTEM_ANGELSCRIPT AND ANGELSCRIPT_FOUND)
-    include_directories(${Angelscript_INCLUDE_DIRS})
+if(USE_SYSTEM_ANGELSCRIPT)
+    find_package(Angelscript)
+    if(ANGELSCRIPT_FOUND)
+        include_directories(${Angelscript_INCLUDE_DIRS})
+    else()
+        message(FATAL_ERROR "Angelscript not found. "
+            "Either install angelscript or use built-in version using "
+            "-DUSE_SYSTEM_ANGELSCRIPT=0")
+    endif()
 else()
     add_subdirectory("${PROJECT_SOURCE_DIR}/lib/angelscript/projects/cmake")
     include_directories("${PROJECT_SOURCE_DIR}/lib/angelscript/include")
@@ -155,6 +163,15 @@ if(APPLE)
 else()
     find_package(OggVorbis REQUIRED)
     include_directories(${OGGVORBIS_INCLUDE_DIRS})
+endif()
+
+# Freetype
+find_package(Freetype)
+if(FREETYPE_FOUND)
+    include_directories(${FREETYPE_INCLUDE_DIRS})
+else()
+    message(FATAL_ERROR "Freetype not found. "
+        "Freetype is required to display characters in SuperTuxKart. ")
 endif()
 
 # Fribidi
@@ -205,12 +222,22 @@ if(MINGW AND CMAKE_BUILD_TYPE MATCHES Release)
     SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--subsystem,windows")
 endif()
 
+# Netwowk Multiplayer
+if(ENABLE_NETWORK_MULTIPLAYER)
+  add_definitions(-DENABLE_NETWORK_MULTIPLAYER_SCREEN)
+endif()
+
 if(WIN32)
     # By default windows.h has macros defined for min and max that screw up everything
     add_definitions(-DNOMINMAX)
 
     # And shut up about unsafe stuff
     add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+
+    # Avoid timespec structure redeclaration on Visual Studio 2015
+    if (NOT (MSVC_VERSION LESS 1900))
+        add_definitions(-DHAVE_STRUCT_TIMESPEC)
+    endif()
 endif()
 
 if(MSVC)
@@ -322,6 +349,7 @@ target_link_libraries(supertuxkart
     ${OGGVORBIS_LIBRARIES}
     ${OPENAL_LIBRARY}
     ${OPENGL_LIBRARIES}
+    ${FREETYPE_LIBRARIES}
     )
 
 if(UNIX AND NOT APPLE)
@@ -381,7 +409,7 @@ if(MSVC OR MINGW)
 endif()
 
 if(MINGW)
-    find_library(LIBGCC NAMES "libgcc_s_dw2-1.dll" "libgcc_s_sjlj-1.dll" PATHS ${CMAKE_FIND_ROOT_PATH})
+    find_library(LIBGCC NAMES "libgcc_s_dw2-1.dll" "libgcc_s_sjlj-1.dll" "libgcc_s_seh-1.dll" PATHS ${CMAKE_FIND_ROOT_PATH})
     if(LIBGCC)
         file(COPY ${LIBGCC} DESTINATION ${CMAKE_BINARY_DIR}/bin/)
     endif()
@@ -397,27 +425,6 @@ if(MINGW)
     if(LIBPTHREAD)
         file(COPY ${LIBPTHREAD} DESTINATION ${CMAKE_BINARY_DIR}/bin/)
     endif()
-endif()
-
-# Optional tools
-add_subdirectory(tools/font_tool)
-
-
-# ==== Make dist target ====
-if(MSVC OR MINGW)
-  # Don't create a dist target for VS
-else()
-  add_custom_target(dist
-    COMMAND rm -rf ${CMAKE_BINARY_DIR}/SuperTuxKart-${PROJECT_VERSION} && rm -f ${CMAKE_BINARY_DIR}/SuperTuxKart-${PROJECT_VERSION}.tar.bz2
-            && echo "Exporting..."
-            && svn export ${PROJECT_SOURCE_DIR} ${CMAKE_BINARY_DIR}/SuperTuxKart-${PROJECT_VERSION}
-            && echo "Compressing..."
-            && cd ${CMAKE_BINARY_DIR}
-            && tar -cjf ${CMAKE_BINARY_DIR}/SuperTuxKart-${PROJECT_VERSION}.tar.bz2 ./SuperTuxKart-${PROJECT_VERSION}
-            && echo "Done, cleaning up"
-            && rm -rf ${CMAKE_BINARY_DIR}/SuperTuxKart-${PROJECT_VERSION}
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-  )
 endif()
 
 

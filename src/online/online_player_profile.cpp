@@ -153,7 +153,8 @@ namespace Online
                 PlayerProfile *player = PlayerManager::get()->getPlayer(i);
                 if(player != current &&
                     player->hasSavedSession() &&
-                    player->getLastOnlineName() == current->getLastOnlineName())
+                    player->getLastOnlineName(true/*ignoreRTL*/) ==
+                    current->getLastOnlineName(true/*ignoreRTL*/))
                 {
                     player->clearSession();
                 }
@@ -173,10 +174,13 @@ namespace Online
         // Check if failure happened during automatic (saved) signin.
         else if (!isSuccess())
         {
-            if (GUIEngine::getCurrentScreen() != MainMenuScreen::getInstance())
+            if (GUIEngine::getCurrentScreen() != MainMenuScreen::getInstance() ||
+                GUIEngine::ModalDialog::isADialogActive())
             {
                 // User has already opened another menu, so use message queue
                 // to inform user that login failed.
+                // Same thing if a dialog is active, can't navigate to other
+                // screen when a dialog is active
                 MessageQueue::add(MessageQueue::MT_ERROR, getInfo());
                 return;
             }
@@ -211,7 +215,11 @@ namespace Online
             int userid_fetched      = input->get("userid", &userid);
             setLastOnlineName(username);
 
-            m_profile = new OnlineProfile(userid, username, true);
+            OnlineProfile* profile = new OnlineProfile(userid, username, true);
+            // Note that addPersistent might decide to merge profile with an
+            // existing profile, and then delete profile. Only the returned
+            // pointer is save to use.
+            m_profile = ProfileManager::get()->addPersistent(profile);
             assert(token_fetched && username_fetched && userid_fetched);
             m_online_state = OS_SIGNED_IN;
             if(rememberPassword())
@@ -219,7 +227,6 @@ namespace Online
                 saveSession(getOnlineId(), getToken());
             }
 
-            ProfileManager::get()->addPersistent(m_profile);
             std::string achieved_string("");
 
             // Even if no achievements were sent, we have to call sync

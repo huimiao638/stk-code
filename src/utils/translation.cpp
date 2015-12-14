@@ -26,12 +26,13 @@
 #include "utils/translation.hpp"
 
 #include <algorithm>
-#include <assert.h>
-#include <locale.h>
-#include <stdio.h>
-#include <errno.h>
-#include <string.h>
-#include <stdlib.h>
+#include <cassert>
+#include <cerrno>
+#include <clocale>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <cwchar>
 #include <iostream>
 #include <vector>
 
@@ -297,6 +298,7 @@ Translations::Translations() //: m_dictionary_manager("UTF-16")
             }
 
             m_current_language_name = l.get_name();
+            m_current_language_name_code = l.get_language();
 
             if (!l)
             {
@@ -311,11 +313,13 @@ Translations::Translations() //: m_dictionary_manager("UTF-16")
                 Log::warn("Translation", "Unsupported langage '%s'", language.c_str());
                 UserConfigParams::m_language = "system";
                 m_current_language_name = "Default language";
+                m_current_language_name_code = "en";
                 m_dictionary = m_dictionary_manager.get_dictionary();
             }
             else
             {
                 m_current_language_name = tgtLang.get_name();
+                m_current_language_name_code = tgtLang.get_language();
                 Log::verbose("translation", "Language '%s'.", m_current_language_name.c_str());
                 m_dictionary = m_dictionary_manager.get_dictionary(tgtLang);
             }
@@ -324,6 +328,7 @@ Translations::Translations() //: m_dictionary_manager("UTF-16")
     else
     {
         m_current_language_name = "Default language";
+        m_current_language_name_code = "en";
         m_dictionary = m_dictionary_manager.get_dictionary();
     }
 
@@ -359,10 +364,23 @@ Translations::Translations() //: m_dictionary_manager("UTF-16")
 
 // ----------------------------------------------------------------------------
 
+Translations::~Translations()
+{
+}   // ~Translations
+
+// ----------------------------------------------------------------------------
+
 const wchar_t* Translations::fribidize(const wchar_t* in_ptr)
 {
     if (isRTLText(in_ptr))
     {
+        // Test if this string was already fribidized
+        std::map<const irr::core::stringw, const irr::core::stringw>::const_iterator
+            found = m_fribidized_strings.find(in_ptr);
+        if (found != m_fribidized_strings.cend())
+            return found->second.c_str();
+
+        // Use fribidi to fribidize the string
         // Split text into lines
         std::vector<core::stringw> input_lines = StringUtils::split(in_ptr, '\n');
         // Reverse lines for RTL strings, irrlicht will reverse them back
@@ -371,18 +389,25 @@ const wchar_t* Translations::fribidize(const wchar_t* in_ptr)
         std::reverse(input_lines.begin(), input_lines.end());
 
         // Fribidize and concat lines
+        core::stringw converted_string;
         for (std::vector<core::stringw>::iterator it = input_lines.begin();
              it != input_lines.end(); it++)
         {
             if (it == input_lines.begin())
-                m_converted_string = fribidizeLine(*it);
+                converted_string = fribidizeLine(*it);
             else
             {
-                m_converted_string += "\n";
-                m_converted_string += fribidizeLine(*it);
+                converted_string += "\n";
+                converted_string += fribidizeLine(*it);
             }
         }
-        return m_converted_string.c_str();
+
+        // Save it in the map
+        m_fribidized_strings.insert(std::pair<const irr::core::stringw, const irr::core::stringw>(
+            in_ptr, converted_string));
+        found = m_fribidized_strings.find(in_ptr);
+
+        return found->second.c_str();
     }
     else
         return in_ptr;
@@ -403,8 +428,7 @@ bool Translations::isRTLText(const wchar_t *in_ptr)
         // Declare as RTL if one character is RTL
         for (std::size_t i = 0; i < length; i++)
         {
-            if (types[i] == FRIBIDI_TYPE_RTL ||
-                types[i] == FRIBIDI_TYPE_RLO)
+            if (types[i] & FRIBIDI_MASK_RTL)
             {
                 delete[] types;
                 return true;
@@ -425,7 +449,7 @@ bool Translations::isRTLText(const wchar_t *in_ptr)
  */
 const wchar_t* Translations::w_gettext(const wchar_t* original, const char* context)
 {
-    std::string in = StringUtils::wide_to_utf8(original);
+    std::string in = StringUtils::wideToUtf8(original);
     return w_gettext(in.c_str(), context);
 }
 
@@ -448,19 +472,20 @@ const wchar_t* Translations::w_gettext(const char* original, const char* context
 
     if (original_t == original)
     {
-        m_converted_string = StringUtils::utf8_to_wide(original);
+        static irr::core::stringw converted_string;
+        converted_string = StringUtils::utf8ToWide(original);
 
 #if TRANSLATE_VERBOSE
-        std::wcout << L"  translation : " << m_converted_string << std::endl;
+        std::wcout << L"  translation : " << converted_string << std::endl;
 #endif
-        return m_converted_string.c_str();
+        return converted_string.c_str();
     }
 
     // print
     //for (int n=0;; n+=4)
 
     static core::stringw original_tw;
-    original_tw = StringUtils::utf8_to_wide(original_t.c_str());
+    original_tw = StringUtils::utf8ToWide(original_t);
 
     const wchar_t* out_ptr = original_tw.c_str();
     if (REMOVE_BOM) out_ptr++;
@@ -481,8 +506,8 @@ const wchar_t* Translations::w_gettext(const char* original, const char* context
  */
 const wchar_t* Translations::w_ngettext(const wchar_t* singular, const wchar_t* plural, int num, const char* context)
 {
-    std::string in = StringUtils::wide_to_utf8(singular);
-    std::string in2 = StringUtils::wide_to_utf8(plural);
+    std::string in = StringUtils::wideToUtf8(singular);
+    std::string in2 = StringUtils::wideToUtf8(plural);
     return w_ngettext(in.c_str(), in2.c_str(), num, context);
 }
 
@@ -500,7 +525,7 @@ const wchar_t* Translations::w_ngettext(const char* singular, const char* plural
                               m_dictionary.translate_ctxt_plural(context, singular, plural, num));
 
     static core::stringw str_buffer;
-    str_buffer = StringUtils::utf8_to_wide(res.c_str());
+    str_buffer = StringUtils::utf8ToWide(res);
     const wchar_t* out_ptr = str_buffer.c_str();
     if (REMOVE_BOM) out_ptr++;
 
@@ -517,10 +542,20 @@ bool Translations::isRTLLanguage() const
     return m_rtl;
 }
 
+std::set<wchar_t> Translations::getCurrentAllChar()
+{
+    return m_dictionary.get_all_used_chars();
+}
+
 std::string Translations::getCurrentLanguageName()
 {
     return m_current_language_name;
     //return m_dictionary_manager.get_language().get_name();
+}
+
+std::string Translations::getCurrentLanguageNameCode()
+{
+    return m_current_language_name_code;
 }
 
 core::stringw Translations::fribidizeLine(const core::stringw &str)
@@ -572,4 +607,3 @@ core::stringw Translations::fribidizeLine(const core::stringw &str)
     return core::stringw(str);
 #endif // ENABLE_BIDI
 }
-

@@ -43,6 +43,7 @@ class ModelDefinitionLoader;
 #include "items/item.hpp"
 #include "scriptengine/script_engine.hpp"
 #include "tracks/quad_graph.hpp"
+#include "tracks/battle_graph.hpp"
 #include "utils/aligned_array.hpp"
 #include "utils/translation.hpp"
 #include "utils/vec3.hpp"
@@ -69,30 +70,10 @@ namespace Scripting
 
 const int HEIGHT_MAP_RESOLUTION = 256;
 
-struct OverworldForceField
-{
-    core::vector3df m_position;
-    bool m_is_locked;
-    int m_required_points;
-
-    OverworldForceField()
-    {
-    }
-
-    OverworldForceField(core::vector3df position, bool is_locked, int required_points)
-    {
-        m_position = position;
-        m_is_locked = is_locked;
-        m_required_points = required_points;
-    }
-};
+// TODO: eventually remove this and fully replace with scripting
 struct OverworldChallenge
 {
-private:
-    OverworldForceField m_force_field;
-    bool m_force_field_set;
 public:
-
     core::vector3df m_position;
     std::string m_challenge_id;
 
@@ -100,27 +81,6 @@ public:
     {
         m_position = position;
         m_challenge_id = challenge_id;
-        m_force_field_set = false;
-    }
-
-    void setForceField(OverworldForceField f)
-    {
-        m_force_field = f;
-        m_force_field_set = true;
-    }
-
-    OverworldForceField& getForceField()
-    {
-        assert(m_force_field_set);
-        return m_force_field;
-    }
-
-    bool isForceFieldSet() const { return m_force_field_set; }
-
-    const OverworldForceField& getForceField() const
-    {
-        assert(m_force_field_set);
-        return m_force_field;
     }
 };
 
@@ -159,8 +119,6 @@ private:
 
     /** Will only be used on overworld */
     std::vector<OverworldChallenge> m_challenges;
-
-    std::vector<OverworldForceField> m_force_fields;
 
     std::vector<Subtitle> m_subtitles;
 
@@ -248,6 +206,8 @@ private:
     bool                     m_is_arena;
     /** True if this track has easter eggs. */
     bool                     m_has_easter_eggs;
+    /** True if this track has navmesh. */
+    bool                     m_has_navmesh;
     /** True if this track is a soccer arena. */
     bool                     m_is_soccer;
 
@@ -475,13 +435,16 @@ public:
     // ------------------------------------------------------------------------
     /** Returns true if this track is a racing track. This means it is not an
      *  internal track (like cut scenes), arena, or soccer field. */
-    bool isRaceTrack() const 
+    bool isRaceTrack() const
     {
         return !m_internal && !m_is_arena && !m_is_soccer;
     }   // isRaceTrack
     // ------------------------------------------------------------------------
     /** Returns true if this track has easter eggs. */
     bool hasEasterEggs() const { return m_has_easter_eggs; }
+    // ------------------------------------------------------------------------
+    /** Returns true if this track navmesh. */
+    bool hasNavMesh() const { return m_has_navmesh; }
     // ------------------------------------------------------------------------
     void loadObjects(const XMLNode* root, const std::string& path,
         ModelDefinitionLoader& lod_loader, bool create_lod_definitions,
@@ -523,7 +486,7 @@ public:
     // ------------------------------------------------------------------------
     /** Returns the start coordinates for a kart with a given index.
      *  \param index Index of kart ranging from 0 to kart_num-1. */
-    btTransform        getStartTransform (unsigned int index) const
+    const btTransform& getStartTransform (unsigned int index) const
     {
         if (index >= m_start_transforms.size())
             Log::fatal("Track", "No start position for kart %i.", index);
@@ -593,7 +556,11 @@ public:
     // ------------------------------------------------------------------------
     float getFogStart()  const { return m_fog_start; }
     // ------------------------------------------------------------------------
+    void setFogStart(float start) { m_fog_start = start; }
+    // ------------------------------------------------------------------------
     float getFogEnd()    const { return m_fog_end; }
+    // ------------------------------------------------------------------------
+    void setFogEnd(float end) { m_fog_end = end; }
     // ------------------------------------------------------------------------
     float getFogStartHeight()  const { return m_fog_height_start; }
     // ------------------------------------------------------------------------
@@ -601,7 +568,11 @@ public:
     // ------------------------------------------------------------------------
     float getFogMax()    const { return m_fog_max; }
     // ------------------------------------------------------------------------
+    void setFogMax(float max) { m_fog_max = max; }
+    // ------------------------------------------------------------------------
     video::SColor getFogColor() const { return m_fog_color; }
+    // ------------------------------------------------------------------------
+    void setFogColor(video::SColor& color) { m_fog_color = color; }
     // ------------------------------------------------------------------------
     video::SColor getSunColor() const { return m_sun_diffuse_color; }
     // ------------------------------------------------------------------------

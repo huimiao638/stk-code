@@ -80,12 +80,8 @@ protected:
 
     bool                           m_soccer_ball;
     
-    bool                           m_garage;
-
     /** True if a kart can drive on this object. This will */
     bool                           m_is_driveable;
-
-    float                          m_distance;
 
     PhysicalObject*                m_physical_object;
 
@@ -97,6 +93,8 @@ protected:
     std::vector<TrackObject*>      m_children;
 
     bool                           m_initially_visible;
+
+    std::string                     m_visibility_condition;
 
     void init(const XMLNode &xml_node, scene::ISceneNode* parent,
         ModelDefinitionLoader& model_def_loader,
@@ -124,6 +122,7 @@ public:
     virtual void reset();
     const core::vector3df& getPosition() const;
     const core::vector3df  getAbsolutePosition() const;
+    const core::vector3df  getAbsoluteCenterPosition() const;
     const core::vector3df& getRotation() const;
     const core::vector3df& getScale() const;
     bool castRay(const btVector3 &from, 
@@ -139,7 +138,7 @@ public:
     // ------------------------------------------------------------------------
     /** To finish object constructions. Called after the track model
      *  is ready. */
-    virtual void init() {};
+    virtual void onWorldReady();
     // ------------------------------------------------------------------------
     /** Called when an explosion happens. As a default does nothing, will
      *  e.g. be overwritten by physical objects etc. */
@@ -160,10 +159,6 @@ public:
 	bool isEnabled() const { return m_enabled; }
     // ------------------------------------------------------------------------
     bool isSoccerBall() const { return m_soccer_ball; }
-    // ------------------------------------------------------------------------
-    bool isGarage() const { return m_garage; }
-    // ------------------------------------------------------------------------
-    float getDistance() const { return m_distance; }
     // ------------------------------------------------------------------------
     const PhysicalObject* getPhysicalObject() const { return m_physical_object; }
     // ------------------------------------------------------------------------
@@ -202,6 +197,10 @@ public:
       * On the script side, the returned object is of type : @ref Scripting_SoundEmitter
       */
     TrackObjectPresentationSound* getSoundEmitter(){ return getPresentation<TrackObjectPresentationSound>(); }
+    /** Should only be used on sound emitter track objects.
+    * On the script side, the returned object is of type : @ref Scripting_Light
+    */
+    TrackObjectPresentationLight* getLight() { return getPresentation<TrackObjectPresentationLight>(); }
     // For angelscript. Needs to be named something different than getAnimator since it's overloaded.
     /** Should only be used on TrackObjects that use curve-based animation.
       * On the script side, the returned object is of type : @ref Scripting_Animator

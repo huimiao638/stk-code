@@ -168,7 +168,7 @@ public:
     /** Returns a (translated) name of a minor race mode.
      *  \param mode Minor race mode.
      */
-    static const wchar_t* getNameOf(const MinorRaceModeType mode)
+    static const core::stringw getNameOf(const MinorRaceModeType mode)
     {
         switch (mode)
         {
@@ -184,7 +184,7 @@ public:
             case MINOR_MODE_EASTER_EGG:     return _("Egg Hunt");
             //I18N: Game mode
             case MINOR_MODE_SOCCER:         return _("Soccer");
-            default: assert(false); return NULL;
+            default: assert(false); return L"";
         }
     }   // getNameOf
 
@@ -197,7 +197,7 @@ public:
             case MINOR_MODE_NORMAL_RACE:    return true;
             case MINOR_MODE_TIME_TRIAL:     return true;
             case MINOR_MODE_FOLLOW_LEADER:  return true;
-            case MINOR_MODE_3_STRIKES:      return false;
+            case MINOR_MODE_3_STRIKES:      return true;
             case MINOR_MODE_EASTER_EGG:     return false;
             case MINOR_MODE_SOCCER:         return false;
             default: assert(false);         return false;
@@ -312,10 +312,6 @@ private:
 
     /** Whether a track should be reversed */
     std::vector<bool>                m_reverse_track;
-
-    /** The points given to a kart on a given position (index is
-     *  0 based, so using race-position - 1. */
-    std::vector<int>                 m_score_for_position;
 
     /** The list of default AI karts to use. This is from the command line. */
     std::vector<std::string>         m_default_ai_list;
@@ -591,8 +587,6 @@ public:
     int getCoinTarget() const { return m_coin_target; }
     // ------------------------------------------------------------------------
     float getTimeTarget() const { return m_time_target; }
-    // ------------------------------------------------------------------------
-    int getPositionScore(int p) const { return m_score_for_position[p-1]; }
     // ------------------------------------------------------------------------
     int getTrackNumber() const { return m_track_number; }
     // ------------------------------------------------------------------------

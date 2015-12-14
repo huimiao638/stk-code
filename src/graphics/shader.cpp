@@ -65,6 +65,7 @@ GLuint ShaderBase::loadShader(const std::string &file, unsigned type)
     
     std::ostringstream code;
     code << "#version " << CVS->getGLSLVersion()<<"\n";
+
     if (CVS->isAMDVertexShaderLayerUsable())
         code << "#extension GL_AMD_vertex_shader_layer : enable\n";
     if (CVS->isAZDOEnabled())
@@ -79,6 +80,11 @@ GLuint ShaderBase::loadShader(const std::string &file, unsigned type)
         code << "#define VSLayer\n";
     if (CVS->needsRGBBindlessWorkaround())
         code << "#define SRGBBindlessFix\n";
+        
+    //shader compilation fails with some drivers if there is no precision qualifier
+    if (type == GL_FRAGMENT_SHADER)
+        code << "precision mediump float;\n";
+    
     code << getHeader();
 
     std::ifstream stream(file_manager->getShader(file), std::ios::in);
@@ -174,13 +180,16 @@ void ShaderBase::bypassUBO() const
                         irr_driver->getCurrentScreenSize().Y);
 
     GLint bLmn = glGetUniformLocation(m_program, "blueLmn[0]");
-    glUniform1fv(bLmn, 9, irr_driver->blueSHCoeff);
+    const float*  blue_SH_coeff = irr_driver->getSphericalHarmonics()->getBlueSHCoeff();
+    glUniform1fv(bLmn, 9, blue_SH_coeff);
 
     GLint gLmn = glGetUniformLocation(m_program, "greenLmn[0]");
-    glUniform1fv(gLmn, 9, irr_driver->greenSHCoeff);
+    const float*  green_SH_coeff = irr_driver->getSphericalHarmonics()->getGreenSHCoeff();
+    glUniform1fv(gLmn, 9, green_SH_coeff);
 
     GLint rLmn = glGetUniformLocation(m_program, "redLmn[0]");
-    glUniform1fv(rLmn, 9, irr_driver->redSHCoeff);
+    const float*  red_SH_coeff = irr_driver->getSphericalHarmonics()->getRedSHCoeff();
+    glUniform1fv(rLmn, 9, red_SH_coeff);
 
     GLint sun_dir = glGetUniformLocation(m_program, "sun_direction");
     const core::vector3df &sd = irr_driver->getSunDirection();

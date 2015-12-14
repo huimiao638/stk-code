@@ -18,6 +18,7 @@
 
 #include "physics/physical_object.hpp"
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -129,7 +130,7 @@ PhysicalObject::PhysicalObject(bool is_dynamic,
 
     m_object = object;
 
-    m_init_xyz   = object->getAbsolutePosition();
+    m_init_xyz = object->getAbsoluteCenterPosition();
     m_init_hpr   = object->getRotation();
     m_init_scale = object->getScale();
 
@@ -252,8 +253,14 @@ void PhysicalObject::init()
         Log::fatal("PhysicalObject", "Unknown node type");
     }
 
-    max = max * Vec3(m_init_scale);
-    min = min * Vec3(m_init_scale);
+    Vec3 parent_scale(1.0f, 1.0f, 1.0f);
+    if (m_object->getParentLibrary() != NULL)
+    {
+        parent_scale = m_object->getParentLibrary()->getScale();
+    }
+
+    max = max * (Vec3(m_init_scale) * parent_scale);
+    min = min * (Vec3(m_init_scale) * parent_scale);
 
     Vec3 extend = max-min;
     // Adjust the mesth of the graphical object so that its center is where it
@@ -318,9 +325,7 @@ void PhysicalObject::init()
     }
     case MP_EXACT:
     {
-        m_graphical_offset = Vec3(0,0,0);
         extend.setY(0);
-        TriangleMesh* triangle_mesh = new TriangleMesh();
 
         // In case of readonly materials we have to get the material from
         // the mesh, otherwise from the node. This is esp. important for
@@ -356,6 +361,8 @@ void PhysicalObject::init()
                 return;
         }   // switch node->getType()
 
+        std::unique_ptr<TriangleMesh> triangle_mesh(new TriangleMesh());
+
         for(unsigned int i=0; i<mesh->getMeshBufferCount(); i++)
         {
             scene::IMeshBuffer *mb = mesh->getMeshBuffer(i);
@@ -380,7 +387,6 @@ void PhysicalObject::init()
             video::ITexture* t=irrMaterial.getTexture(0);
 
             const Material* material=0;
-            TriangleMesh *tmesh = triangle_mesh;
             if(t)
             {
                 std::string image =
@@ -409,10 +415,10 @@ void PhysicalObject::init()
                         vertices[k]=v;
                         normals[k]=mbVertices[indx].Normal;
                     }   // for k
-                    if(tmesh) tmesh->addTriangle(vertices[0], vertices[1],
-                                                 vertices[2], normals[0],
-                                                 normals[1],  normals[2],
-                                                 material                 );
+                    triangle_mesh->addTriangle(vertices[0], vertices[1],
+                                               vertices[2], normals[0],
+                                               normals[1],  normals[2],
+                                               material                 );
                 }   // for j
             }
             else
@@ -431,10 +437,10 @@ void PhysicalObject::init()
                             vertices[k]=v;
                             normals[k]=mbVertices[indx].Normal;
                         }   // for k
-                        if(tmesh) tmesh->addTriangle(vertices[0], vertices[1],
-                                                     vertices[2], normals[0],
-                                                     normals[1],  normals[2],
-                                                     material                 );
+                        triangle_mesh->addTriangle(vertices[0], vertices[1],
+                                                   vertices[2], normals[0],
+                                                   normals[1],  normals[2],
+                                                   material                 );
                     }   // for j
 
                 }
@@ -443,8 +449,9 @@ void PhysicalObject::init()
         }   // for i<getMeshBufferCount
         triangle_mesh->createCollisionShape();
         m_shape = &triangle_mesh->getCollisionShape();
-        m_triangle_mesh = triangle_mesh;
-
+        m_triangle_mesh = triangle_mesh.release();
+        m_init_pos.setOrigin(m_init_pos.getOrigin() + m_graphical_offset);
+        // m_graphical_offset = Vec3(0,0,0);
         break;
     }
     case MP_NONE:
@@ -461,12 +468,40 @@ void PhysicalObject::init()
     // 2. Create the rigid object
     // --------------------------
     // m_init_pos is the point on the track - add the offset
-    m_init_pos.setOrigin(m_init_pos.getOrigin() +
-                         btVector3(0,extend.getY()*0.5f, 0));
+    if (m_is_dynamic)
+    {
+        m_init_pos.setOrigin(m_init_pos.getOrigin() +
+            btVector3(0, extend.getY()*0.5f, 0));
+    }
+
+
+    // If this object has a parent, apply the parent's rotation
+    if (m_object->getParentLibrary() != NULL)
+    {
+        core::vector3df parent_rot_hpr = m_object->getParentLibrary()->getInitRotation();
+        core::matrix4 parent_rot_matrix;
+        parent_rot_matrix.setRotationDegrees(parent_rot_hpr);
+
+        btQuaternion child_rot_quat = m_init_pos.getRotation();
+        core::matrix4 child_rot_matrix;
+        Vec3 axis = child_rot_quat.getAxis();
+        child_rot_matrix.setRotationAxisRadians(child_rot_quat.getAngle(), axis.toIrrVector());
+
+        irr::core::quaternion tempQuat(parent_rot_matrix * child_rot_matrix);
+        btQuaternion q(tempQuat.X, tempQuat.Y, tempQuat.Z, tempQuat.W);
+
+        m_init_pos.setRotation(q);
+    }
+
     m_motion_state = new btDefaultMotionState(m_init_pos);
     btVector3 inertia(1,1,1);
     if (m_body_type != MP_EXACT)
         m_shape->calculateLocalInertia(m_mass, inertia);
+    else
+    {
+        if (m_mass == 0)
+            inertia.setValue(0, 0, 0);
+    }
     btRigidBody::btRigidBodyConstructionInfo info(m_mass, m_motion_state,
                                                   m_shape, inertia);
 

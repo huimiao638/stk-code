@@ -20,11 +20,14 @@
 #define TRANSLATION_HPP
 
 #include <irrString.h>
-#include <vector>
+#include <map>
 #include <string>
+#include <utility>
+#include <vector>
+
 #include "utils/string_utils.hpp"
 
-#  include "tinygettext/tinygettext.hpp"
+#include "tinygettext/tinygettext.hpp"
 
 #  define _(String, ...)        (translations->fribidize(StringUtils::insertValues(translations->w_gettext(String), ##__VA_ARGS__)))
 #undef _C
@@ -46,13 +49,16 @@ private:
     tinygettext::DictionaryManager m_dictionary_manager;
     tinygettext::Dictionary        m_dictionary;
 
-    irr::core::stringw m_converted_string;
+    /** A map that saves all fribidized strings: Original string, fribidized string */
+    std::map<const irr::core::stringw, const irr::core::stringw> m_fribidized_strings;
     bool m_rtl;
 
     std::string m_current_language_name;
+    std::string m_current_language_name_code;
 
 public:
                        Translations();
+                      ~Translations();
 
     const wchar_t     *w_gettext(const wchar_t* original, const char* context=NULL);
     const wchar_t     *w_gettext(const char* original, const char* context=NULL);
@@ -69,7 +75,11 @@ public:
 
     const std::vector<std::string>* getLanguageList() const;
 
-    std::string        getCurrentLanguageName();
+    std::set<wchar_t>        getCurrentAllChar();
+
+    std::string              getCurrentLanguageName();
+
+    std::string              getCurrentLanguageNameCode();
 
 private:
     irr::core::stringw fribidizeLine(const irr::core::stringw &str);

@@ -53,7 +53,7 @@ ChallengeData::ChallengeData(const std::string& filename)
 
     // we are using auto_ptr to make sure the XML node is released when leaving
     // the scope
-    std::auto_ptr<XMLNode> root(new XMLNode( filename ));
+    std::unique_ptr<XMLNode> root(new XMLNode( filename ));
 
     if(root.get() == NULL || root->getName()!="challenge")
     {
@@ -243,11 +243,16 @@ ChallengeData::ChallengeData(const std::string& filename)
     }
 
     core::stringw description;
-    if (track_node != NULL)
+    if (track_node != NULL && m_minor!=RaceManager::MINOR_MODE_FOLLOW_LEADER)
     {
         //I18N: number of laps to race in a challenge
         description += _("Laps : %i", m_num_laps);
         description += core::stringw(L"\n");
+    }
+    else if (track_node)
+    {
+        // Follow the leader mode:
+        description = _("Follow the leader");
     }
 
     m_challenge_description = description;

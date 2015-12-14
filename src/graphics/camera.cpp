@@ -222,7 +222,7 @@ void Camera::setupCamera()
                                      irr_driver->getActualScreenSize().Width,
                                      irr_driver->getActualScreenSize().Height);
             m_scaling  = core::vector2df(1.0f, 1.0f);
-            m_fov      = DEGREE_TO_RAD*75.0f;
+            m_fov      = DEGREE_TO_RAD*stk_config->m_camera_fov[0];
             break;
     case 2: m_viewport = core::recti(0,
                                      m_index==0 ? 0
@@ -232,7 +232,7 @@ void Camera::setupCamera()
                                                 : irr_driver->getActualScreenSize().Height);
             m_scaling  = core::vector2df(1.0f, 0.5f);
             m_aspect  *= 2.0f;
-            m_fov      = DEGREE_TO_RAD*65.0f;
+            m_fov      = DEGREE_TO_RAD*stk_config->m_camera_fov[1];
             break;
     case 3:
             /*
@@ -265,7 +265,7 @@ void Camera::setupCamera()
             const int y2 = (m_index<2    ? irr_driver->getActualScreenSize().Height>>1 : irr_driver->getActualScreenSize().Height);
             m_viewport = core::recti(x1, y1, x2, y2);
             m_scaling  = core::vector2df(0.5f, 0.5f);
-            m_fov      = DEGREE_TO_RAD*50.0f;
+            m_fov      = DEGREE_TO_RAD*stk_config->m_camera_fov[3];
             }
             break;
     default:
@@ -380,7 +380,7 @@ void Camera::smoothMoveCamera(float dt)
     // Smoothly interpolate towards the position and target
     const KartProperties *kp = m_kart->getKartProperties();
     float max_increase_with_zipper = kp->getZipperMaxSpeedIncrease();
-    float max_speed_without_zipper = kp->getMaxSpeed();
+    float max_speed_without_zipper = kp->getEngineMaxSpeed();
     float current_speed = m_kart->getSpeed();
 
     const Skidding *ks = m_kart->getSkidding();
@@ -433,12 +433,6 @@ void Camera::smoothMoveCamera(float dt)
     assert(!isnan(m_camera->getPosition().Y));
     assert(!isnan(m_camera->getPosition().Z));
 
-    if (race_manager->getNumLocalPlayers() < 2)
-    {
-        SFXManager::get()->positionListener(current_position,
-                                            current_target - current_position,
-                                            Vec3(0,1,0));
-    }
 }   // smoothMoveCamera
 
 //-----------------------------------------------------------------------------
@@ -463,7 +457,7 @@ void Camera::getCameraSettings(float *above_kart, float *cam_angle,
             {
                 *above_kart = 0;
                 *cam_angle  = 0;
-                *distance   = -m_kart->getKartModel()->getLength();
+                *distance   = -m_kart->getKartModel()->getLength()-1.0f;
             }
             else if(UserConfigParams::m_camera_debug==4)
             {
@@ -475,7 +469,7 @@ void Camera::getCameraSettings(float *above_kart, float *cam_angle,
             else
             {
                 *above_kart    = 0.75f;
-                *cam_angle     = kp->getCameraForwardUpAngle();
+                *cam_angle     = kp->getCameraForwardUpAngle() * DEGREE_TO_RAD;
                 *distance      = -m_distance;
             }
             float steering = m_kart->getSteerPercent()
@@ -490,7 +484,7 @@ void Camera::getCameraSettings(float *above_kart, float *cam_angle,
     case CM_REVERSE: // Same as CM_NORMAL except it looks backwards
         {
             *above_kart = 0.75f;
-            *cam_angle  = kp->getCameraBackwardUpAngle();
+            *cam_angle  = kp->getCameraBackwardUpAngle() * DEGREE_TO_RAD;
             *sideway    = 0;
             *distance   = 2.0f*m_distance;
             *smoothing  = false;
@@ -530,8 +524,27 @@ void Camera::getCameraSettings(float *above_kart, float *cam_angle,
  */
 void Camera::update(float dt)
 {
-    if (m_kart == NULL) return; // cameras not attached to kart must be positioned manually
+    if (m_kart == NULL)
+    {
+        if (race_manager->getNumLocalPlayers() < 2)
+        {
+            Vec3 pos(m_camera->getPosition());
+            SFXManager::get()->positionListener(pos,
+                Vec3(m_camera->getTarget()) - pos,
+                Vec3(0, 1, 0));
+        }
 
+        return; // cameras not attached to kart must be positioned manually
+    }
+
+    if (race_manager->getNumLocalPlayers() < 2)
+    {
+        Vec3 heading(sin(m_kart->getHeading()), 0.0f, cos(m_kart->getHeading()));
+        SFXManager::get()->positionListener(m_kart->getXYZ(),
+            heading,
+            Vec3(0, 1, 0));
+    }
+    
     float above_kart, cam_angle, side_way, distance;
     bool  smoothing;
 
@@ -547,6 +560,14 @@ void Camera::update(float dt)
         // To view inside tunnels (FIXME 27>15 why??? makes no sense
         // - the kart should not be visible, but it works)
         m_camera->setNearValue(27.0);
+    }
+    else if (UserConfigParams::m_camera_debug==5)
+    {
+        core::vector3df xyz = m_kart->getXYZ().toIrrVector();
+        Vec3 offset(3, 0, 0);
+        offset = m_kart->getTrans()(offset);
+        m_camera->setTarget(xyz);
+        m_camera->setPosition(offset.toIrrVector());
     }
     // Update the first person camera
     else if (UserConfigParams::m_camera_debug == 3)
@@ -822,8 +843,7 @@ void Camera::handleEndCamera(float dt)
         }
     case EndCameraInformation::EC_AHEAD_OF_KART:
         {
-            const KartProperties *kp=m_kart->getKartProperties();
-            float cam_angle  = kp->getCameraBackwardUpAngle();
+            float cam_angle = m_kart->getKartProperties()->getCameraBackwardUpAngle() * DEGREE_TO_RAD;
 
             positionCamera(dt, /*above_kart*/0.75f,
                            cam_angle, /*side_way*/0,

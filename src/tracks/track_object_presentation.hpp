@@ -100,6 +100,11 @@ public:
         return m_init_xyz;
     }   // getAbsolutePosition
     // ------------------------------------------------------------------------
+    virtual const core::vector3df getAbsoluteCenterPosition() const
+    {
+        return m_init_xyz;
+    }
+    // ------------------------------------------------------------------------
     /** Returns the initial rotation. */
     virtual const core::vector3df& getRotation() const { return m_init_hpr; }
     // ------------------------------------------------------------------------
@@ -119,6 +124,8 @@ class TrackObjectPresentationSceneNode : public TrackObjectPresentation
 protected:
     /** A pointer to the scene node of this object. */
     scene::ISceneNode* m_node;
+
+    bool m_force_always_hidden;
 public:
 
     /** Constructor based on data from xml. */
@@ -126,6 +133,7 @@ public:
         TrackObjectPresentation(xml_node)
     {
         m_node = NULL;
+        m_force_always_hidden = false;
     }   // TrackObjectPresentationSceneNode
     // ------------------------------------------------------------------------
     /** Constructor based on a transform. */
@@ -141,6 +149,7 @@ public:
     // ------------------------------------------------------------------------
     virtual const core::vector3df& getPosition() const OVERRIDE;
     virtual const core::vector3df  getAbsolutePosition() const OVERRIDE;
+    virtual const core::vector3df getAbsoluteCenterPosition() const OVERRIDE;
     virtual const core::vector3df& getRotation() const OVERRIDE;
     virtual const core::vector3df& getScale() const OVERRIDE;
     virtual void move(const core::vector3df& xyz, const core::vector3df& hpr,
@@ -265,17 +274,21 @@ private:
 
     core::vector3df m_xyz;
 
+    bool m_enabled;
+
 public:
 
     TrackObjectPresentationSound(const XMLNode& xml_node,
                                  scene::ISceneNode* parent);
     virtual ~TrackObjectPresentationSound();
-    virtual void onTriggerItemApproached(Item* who) OVERRIDE;
+    virtual void onTriggerItemApproached() OVERRIDE;
     virtual void update(float dt) OVERRIDE;
     virtual void move(const core::vector3df& xyz, const core::vector3df& hpr,
         const core::vector3df& scale, bool isAbsoluteCoord) OVERRIDE;
     void triggerSound(bool loop);
     void stopSound();
+
+    virtual void setEnable(bool enabled) OVERRIDE;
 
     // ------------------------------------------------------------------------
     /** Currently used for sound effects only, in cutscenes only atm */
@@ -341,14 +354,22 @@ private:
     video::SColor m_color;
     float m_distance;
     float m_energy;
-
 public:
     TrackObjectPresentationLight(const XMLNode& xml_node,
                                  scene::ISceneNode* parent);
     virtual ~TrackObjectPresentationLight();
+    float getEnergy() const { return m_energy; }
+    void setEnergy(float energy);
 };   // TrackObjectPresentationLight
 
 // ============================================================================
+
+enum ActionTriggerType
+{
+    TRIGGER_TYPE_POINT = 0,
+    TRIGGER_TYPE_CYLINDER = 1
+};
+
 /** \ingroup tracks
  *  A track object representation that consists of an action trigger
  */
@@ -361,6 +382,8 @@ private:
 
     bool m_action_active;
 
+    ActionTriggerType m_type;
+
 public:
     TrackObjectPresentationActionTrigger(const XMLNode& xml_node);
     TrackObjectPresentationActionTrigger(const core::vector3df& xyz,
@@ -369,7 +392,7 @@ public:
 
     virtual ~TrackObjectPresentationActionTrigger() {}
 
-    virtual void onTriggerItemApproached(Item* who) OVERRIDE;
+    virtual void onTriggerItemApproached() OVERRIDE;
     // ------------------------------------------------------------------------
     /** Reset the trigger (i.e. sets it to active again). */
     virtual void reset() OVERRIDE { m_action_active = true; }

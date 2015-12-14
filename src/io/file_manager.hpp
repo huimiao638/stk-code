@@ -48,8 +48,8 @@ public:
      *  The last entry ASSET_COUNT specifies the number of entries. */
     enum AssetType {ASSET_MIN,
                     CHALLENGE=ASSET_MIN,
-                    FONT, GFX, GRANDPRIX, GUI, LIBRARY, MODEL, MUSIC,
-                    SCRIPT, SFX, SHADER, SKIN, TEXTURE, 
+                    GFX, GRANDPRIX, GUI, LIBRARY, MODEL, MUSIC,
+                    SCRIPT, SFX, SHADER, SKIN, TEXTURE, TTF,
                     TRANSLATION, ASSET_MAX = TRANSLATION,
                     ASSET_COUNT};
 private:
@@ -68,6 +68,9 @@ private:
 
     /** The list of all root directories. */
     static std::vector<std::string> m_root_dirs;
+
+    /** Name of stdout file. */
+    static std::string m_stdout_filename;
 
     /** Directory to store screenshots in. */
     std::string       m_screenshot_dir;
@@ -109,6 +112,7 @@ public:
                      ~FileManager();
     void              init();
     static void       addRootDirs(const std::string &roots);
+    static void       setStdoutName(const std::string &name);
     io::IXMLReader   *createXMLReader(const std::string &filename);
     XMLNode          *createXMLTree(const std::string &filename);
     XMLNode          *createXMLTreeFromString(const std::string & content);
@@ -134,6 +138,14 @@ public:
     std::string searchTexture(const std::string& fname) const;
     std::string getUserConfigFile(const std::string& fname) const;
     bool        fileExists(const std::string& path) const;
+    // ------------------------------------------------------------------------
+    /** Convenience function to save some typing in the 
+     *  file manager constructor. */
+    bool        fileExists(const char *prefix, const std::string& path) const
+    {
+        return fileExists(std::string(prefix) + path);
+    }
+    // ------------------------------------------------------------------------
     void        listFiles        (std::set<std::string>& result,
                                   const std::string& dir,
                                   bool make_full_path=false) const;

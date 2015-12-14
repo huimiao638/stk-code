@@ -40,8 +40,7 @@
 MainLoop* main_loop = 0;
 
 MainLoop::MainLoop() :
-m_abort(false),
-m_frame_count(0)
+m_abort(false)
 {
     m_curr_time = 0;
     m_prev_time = 0;
@@ -68,6 +67,24 @@ float MainLoop::getLimitedDt()
     {
         m_curr_time = device->getTimer()->getRealTime();
         dt = (float)(m_curr_time - m_prev_time);
+        const World* const world = World::getWorld();
+        if (UserConfigParams::m_fps_debug && world)
+        {
+            const LinearWorld *lw = dynamic_cast<const LinearWorld*>(world);
+            if (lw)
+            {
+                Log::verbose("fps", "time %f distance %f dt %f fps %f",
+                             lw->getTime(),
+                             lw->getDistanceDownTrackForKart(0),
+                             dt*0.001f, 1000.0f / dt);
+            }
+            else
+            {
+                Log::verbose("fps", "time %f dt %f fps %f",
+                             world->getTime(), dt*0.001f, 1000.0f / dt);
+            }
+
+        }
 
         // don't allow the game to run slower than a certain amount.
         // when the computer can't keep it up, slow down the shown time instead

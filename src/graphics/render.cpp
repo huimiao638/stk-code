@@ -186,15 +186,9 @@ void IrrDriver::renderGLSL(float dt)
 
         const core::recti &viewport = camera->getViewport();
 
-        if (World::getWorld() && World::getWorld()->getTrack()->hasShadows() && !SphericalHarmonicsTextures.empty())
+        if (World::getWorld() && World::getWorld()->getTrack()->hasShadows() && m_spherical_harmonics->has6Textures())
             irr_driver->getSceneManager()->setAmbientLight(SColor(0, 0, 0, 0));
 
-        // TODO: put this outside of the rendering loop
-        if (!m_skybox_ready)
-        {
-            prepareSkybox();
-            m_skybox_ready = true;
-        }
         if (!CVS->isDefferedEnabled())
             glEnable(GL_FRAMEBUFFER_SRGB);
 
@@ -522,10 +516,6 @@ void IrrDriver::renderScene(scene::ICameraSceneNode * const camnode, unsigned po
     } // end glow
     PROFILER_POP_CPU_MARKER();
 
-    PROFILER_PUSH_CPU_MARKER("- Lensflare/godray", 0x00, 0xFF, 0xFF);
-    computeSunVisibility();
-    PROFILER_POP_CPU_MARKER();
-
     // Render transparent
     {
         PROFILER_PUSH_CPU_MARKER("- Transparent Pass", 0xFF, 0x00, 0x00);
@@ -627,18 +617,18 @@ void IrrDriver::renderFixed(float dt)
     m_video_driver->endScene();
 }
 
+
+
 // ----------------------------------------------------------------------------
-
-void IrrDriver::computeSunVisibility()
+void IrrDriver::renderSkybox(const scene::ICameraSceneNode *camera)
 {
-    // Is the lens flare enabled & visible? Check last frame's query.
-    bool hasgodrays = false;
-
-    if (World::getWorld() != NULL)
+    if(m_skybox)
     {
-        hasgodrays = World::getWorld()->getTrack()->hasGodRays();
+        m_skybox->render(camera);
     }
-}
+}   // renderSkybox
+
+// ----------------------------------------------------------------------------
 
 void IrrDriver::renderParticles()
 {

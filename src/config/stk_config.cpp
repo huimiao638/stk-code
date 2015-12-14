@@ -27,7 +27,6 @@
 #include "io/xml_node.hpp"
 #include "items/item.hpp"
 #include "karts/kart_properties.hpp"
-#include "karts/player_difficulty.hpp"
 #include "utils/log.hpp"
 
 STKConfig* stk_config=0;
@@ -119,19 +118,8 @@ void STKConfig::load(const std::string &filename)
     }
 
     CHECK_NEG(m_max_karts,                 "<karts max=..."             );
-    CHECK_NEG(m_parachute_friction,        "parachute-friction"         );
-    CHECK_NEG(m_parachute_lbound_fraction, "parachute-lbound-fraction"  );
-    CHECK_NEG(m_parachute_ubound_fraction, "parachute-ubound-fraction"  );
-    CHECK_NEG(m_parachute_max_speed,       "parachute-max-speed"        );
-    CHECK_NEG(m_parachute_time,            "parachute-time"             );
-    CHECK_NEG(m_parachute_time_other,      "parachute-time-other"       );
-    CHECK_NEG(m_bomb_time,                 "bomb-time"                  );
-    CHECK_NEG(m_bomb_time_increase,        "bomb-time-increase"         );
-    CHECK_NEG(m_anvil_time,                "anvil-time"                 );
-    CHECK_NEG(m_anvil_weight,              "anvil-weight"               );
     CHECK_NEG(m_item_switch_time,          "item-switch-time"           );
     CHECK_NEG(m_bubblegum_counter,         "bubblegum disappear counter");
-    CHECK_NEG(m_bubblegum_shield_time,     "bubblegum shield-time"      );
     CHECK_NEG(m_explosion_impulse_objects, "explosion-impulse-objects"  );
     CHECK_NEG(m_max_skidmarks,             "max-skidmarks"              );
     CHECK_NEG(m_min_kart_version,          "<kart-version min...>"      );
@@ -163,18 +151,13 @@ void STKConfig::load(const std::string &filename)
  */
 void STKConfig::init_defaults()
 {
-    m_anvil_weight               = m_parachute_friction        =
-        m_parachute_time         = m_parachute_lbound_fraction =
-        m_parachute_time_other   = m_anvil_speed_factor        =
-        m_bomb_time              = m_bomb_time_increase        =
-        m_anvil_time             = m_music_credit_time         =
+    m_bomb_time                  = m_bomb_time_increase        =
+        m_explosion_impulse_objects = m_music_credit_time      =
         m_delay_finish_time      = m_skid_fadeout_time         =
         m_near_ground            = m_item_switch_time          =
-        m_smooth_angle_limit     = m_parachute_ubound_fraction =
-        m_penalty_time           = m_explosion_impulse_objects =
-        m_parachute_max_speed    = UNDEFINED;
+        m_smooth_angle_limit     = m_penalty_time              =
+        UNDEFINED;
     m_bubblegum_counter          = -100;
-    m_bubblegum_shield_time      = -100;
     m_shield_restrict_weapos     = false;
     m_max_karts                  = -100;
     m_max_skidmarks              = -100;
@@ -275,6 +258,14 @@ void STKConfig::getAllData(const XMLNode * root)
         steer_node->get("camera-follow-skid",   &m_camera_follow_skid        );
     }
 
+    if (const XMLNode *camera = root->getNode("camera"))
+    {
+        camera->get("fov-1", &m_camera_fov[0]);
+        camera->get("fov-2", &m_camera_fov[1]);
+        camera->get("fov-3", &m_camera_fov[2]);
+        camera->get("fov-4", &m_camera_fov[3]);
+    }
+
     if (const XMLNode *music_node = root->getNode("music"))
     {
         std::string title_music;
@@ -301,23 +292,6 @@ void STKConfig::getAllData(const XMLNode * root)
     if(const XMLNode *credits_node= root->getNode("credits"))
         credits_node->get("music", &m_music_credit_time);
 
-
-    if(const XMLNode *anvil_node= root->getNode("anvil"))
-    {
-        anvil_node->get("weight",       &m_anvil_weight      );
-        anvil_node->get("speed-factor", &m_anvil_speed_factor);
-        anvil_node->get("time",         &m_anvil_time        );
-    }
-
-    if(const XMLNode *parachute_node= root->getNode("parachute"))
-    {
-        parachute_node->get("friction",         &m_parachute_friction       );
-        parachute_node->get("time",             &m_parachute_time           );
-        parachute_node->get("time-other",       &m_parachute_time_other     );
-        parachute_node->get("lbound-fraction",  &m_parachute_lbound_fraction);
-        parachute_node->get("ubound-fraction",  &m_parachute_ubound_fraction);
-        parachute_node->get("max-speed",        &m_parachute_max_speed      );
-    }
 
     if(const XMLNode *bomb_node= root->getNode("bomb"))
     {
@@ -351,7 +325,6 @@ void STKConfig::getAllData(const XMLNode * root)
     if(const XMLNode *bubblegum_node= root->getNode("bubblegum"))
     {
         bubblegum_node->get("disappear-counter", &m_bubblegum_counter     );
-        bubblegum_node->get("shield-time",       &m_bubblegum_shield_time );
         bubblegum_node->get("restrict-weapons",  &m_shield_restrict_weapos);
     }
 
@@ -377,6 +350,17 @@ void STKConfig::getAllData(const XMLNode * root)
 
     }
 
+    if(const XMLNode *font_node = root->getNode("font"))
+    {
+        font_node->get("default",          &m_font_default         );
+        font_node->get("default_fallback", &m_font_default_fallback);
+        font_node->get("cjk",              &m_font_cjk             );
+        font_node->get("ar",               &m_font_ar              );
+        font_node->get("bold",             &m_font_bold            );
+        font_node->get("bold_fallback",    &m_font_bold_fallback   );
+        font_node->get("digit",            &m_font_digit           );
+    }
+
     // Get the default KartProperties
     // ------------------------------
     const XMLNode *node = root -> getNode("general-kart-defaults");
@@ -395,14 +379,6 @@ void STKConfig::getAllData(const XMLNode * root)
         m_kart_properties[type->getName()] = new KartProperties();
         m_kart_properties[type->getName()]->copyFrom(m_default_kart_properties);
         m_kart_properties[type->getName()]->getAllData(type);
-    }
-
-    child_node = node->getNode("difficulties");
-    for (unsigned int i = 0; i < child_node->getNumNodes(); ++i)
-    {
-        const XMLNode* type = child_node->getNode(i);
-        m_player_difficulties[i] = new PlayerDifficulty();
-        m_player_difficulties[i]->getAllData(type);
     }
 }   // getAllData
 

@@ -53,18 +53,38 @@ namespace Scripting
         {
             InputDevice* device = input_manager->getDeviceManager()->getLatestUsedDevice();
             DeviceConfig* config = device->getConfiguration();
-            irr::core::stringw control;
             PlayerAction ScriptAction = (PlayerAction)Enum_value;
-            control = config->getBindingAsString(ScriptAction);
-            std::string key = std::string(irr::core::stringc(control).c_str());
+            irr::core::stringw control = config->getBindingAsString(ScriptAction);
+            std::string key = StringUtils::wideToUtf8(control);
             return key;
         }
 
         /** Show the specified message in a popup */
-        void displayMessage(std::string* input)
+        void displayModalMessage(std::string* input)
         {
-            irr::core::stringw out = StringUtils::utf8_to_wide(input->c_str());
+            irr::core::stringw out = StringUtils::utf8ToWide(*input);
             new TutorialMessageDialog((out), true);
+        }
+
+        void clearOverlayMessages()
+        {
+            World::getWorld()->getRaceGUI()->clearAllMessages();
+        }
+
+        /** Display text in the center of the screen for a few seconds */
+        void displayOverlayMessage(std::string* input)
+        {
+            irr::core::stringw msg = StringUtils::utf8ToWide(*input);
+            std::vector<core::stringw> parts =
+                StringUtils::split(msg, '\n', false);
+                        
+            for (unsigned int n = 0; n < parts.size(); n++)
+            {
+                World::getWorld()->getRaceGUI()
+                                    ->addMessage(parts[n], NULL, 4.0f,
+                                                video::SColor(255, 255,255,255),
+                                                true, true);
+            }   // for n<parts.size()
         }
 
         /** Get translated version of string */
@@ -72,7 +92,7 @@ namespace Scripting
         {
             irr::core::stringw out = translations->fribidize(translations->w_gettext(input->c_str()));
 
-            return StringUtils::wide_to_utf8(out.c_str());
+            return StringUtils::wideToUtf8(out);
         }
 
         /** Translate string and insert values. e.g. GUI::translate("Hello %s !", "John") */
@@ -81,11 +101,11 @@ namespace Scripting
             irr::core::stringw out = translations->w_gettext(formatString->c_str());
 
             out = StringUtils::insertValues(out,
-                StringUtils::utf8_to_wide(arg1->c_str()));
+                                            StringUtils::utf8ToWide(*arg1));
 
             out = translations->fribidize(out);
 
-            return StringUtils::wide_to_utf8(out.c_str());
+            return StringUtils::wideToUtf8(out);
         }
 
         /** Translate string and insert values. e.g. GUI::translate("Hello %s !", "John") */
@@ -94,12 +114,12 @@ namespace Scripting
             irr::core::stringw out = translations->w_gettext(formatString->c_str());
 
             out = StringUtils::insertValues(out,
-                StringUtils::utf8_to_wide(arg1->c_str()),
-                StringUtils::utf8_to_wide(arg2->c_str()));
+                                            StringUtils::utf8ToWide(*arg1),
+                                            StringUtils::utf8ToWide(*arg2));
 
             out = translations->fribidize(out);
 
-            return StringUtils::wide_to_utf8(out.c_str());
+            return StringUtils::wideToUtf8(out);
         }
 
         /** Translate string and insert values. e.g. GUI::translate("Hello %s !", "John") */
@@ -109,13 +129,13 @@ namespace Scripting
             irr::core::stringw out = translations->w_gettext(formatString->c_str());
 
             out = StringUtils::insertValues(out,
-                StringUtils::utf8_to_wide(arg1->c_str()),
-                StringUtils::utf8_to_wide(arg2->c_str()),
-                StringUtils::utf8_to_wide(arg3->c_str()));
+                                            StringUtils::utf8ToWide(*arg1),
+                                            StringUtils::utf8ToWide(*arg2),
+                                            StringUtils::utf8ToWide(*arg3));
 
             out = translations->fribidize(out);
 
-            return StringUtils::wide_to_utf8(out.c_str());
+            return StringUtils::wideToUtf8(out);
         }
         /** @}*/
         /** @}*/
@@ -150,7 +170,9 @@ namespace Scripting
         {
             int r; // of type asERetCodes
             engine->SetDefaultNamespace("GUI");
-            r = engine->RegisterGlobalFunction("void displayMessage(const string &in)", asFUNCTION(displayMessage), asCALL_CDECL); assert(r >= 0);
+            r = engine->RegisterGlobalFunction("void displayModalMessage(const string &in)", asFUNCTION(displayModalMessage), asCALL_CDECL); assert(r >= 0);
+            r = engine->RegisterGlobalFunction("void displayOverlayMessage(const string &in)", asFUNCTION(displayOverlayMessage), asCALL_CDECL); assert(r >= 0);
+            r = engine->RegisterGlobalFunction("void clearOverlayMessages()", asFUNCTION(clearOverlayMessages), asCALL_CDECL); assert(r >= 0);
             r = engine->RegisterGlobalFunction("string getKeyBinding(int input)", asFUNCTION(getKeyBinding), asCALL_CDECL); assert(r >= 0);
             r = engine->RegisterGlobalFunction("string translate(const string &in)", asFUNCTION(proxy_translate), asCALL_CDECL); assert(r >= 0);
             r = engine->RegisterGlobalFunction("string translate(const string &in, const string &in)", asFUNCTION(proxy_translateAndInsertValues1), asCALL_CDECL); assert(r >= 0);

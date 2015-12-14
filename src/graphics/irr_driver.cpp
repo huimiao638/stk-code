@@ -57,6 +57,7 @@
 #include "modes/profile_world.hpp"
 #include "modes/world.hpp"
 #include "physics/physics.hpp"
+#include "scriptengine/property_animator.hpp"
 #include "states_screens/dialogs/confirm_resolution_dialog.hpp"
 #include "states_screens/state_manager.hpp"
 #include "tracks/track_manager.hpp"
@@ -82,6 +83,7 @@ please use the included version."
 using namespace irr;
 
 #ifdef WIN32
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #endif
 #if defined(__linux__) && !defined(ANDROID)
@@ -94,8 +96,9 @@ IrrDriver *irr_driver = NULL;
 
 GPUTimer          m_perf_query[Q_LAST];
 
-const int MIN_SUPPORTED_HEIGHT = 600;
-const int MIN_SUPPORTED_WIDTH  = 800;
+const int MIN_SUPPORTED_HEIGHT = 768;
+const int MIN_SUPPORTED_WIDTH  = 1024;
+const bool ALLOW_1280_X_720    = true;
 
 // ----------------------------------------------------------------------------
 /** The constructor creates the irrlicht device. It first creates a NULL
@@ -121,10 +124,13 @@ IrrDriver::IrrDriver()
     m_rtts                = NULL;
     m_post_processing     = NULL;
     m_wind                = new Wind();
+    m_skybox              = NULL;
+    m_spherical_harmonics = NULL;
+
     m_mipviz = m_wireframe = m_normals = m_ssaoviz = false;
     m_lightviz = m_shadowviz = m_distortviz = m_rsm = m_rh = m_gi = false;
     m_boundingboxesviz = false;
-    SkyboxCubeMap = m_last_light_bucket_distance = 0;
+    m_last_light_bucket_distance = 0;
     memset(object_count, 0, sizeof(object_count));
 }   // IrrDriver
 
@@ -154,8 +160,12 @@ IrrDriver::~IrrDriver()
 
     delete m_shadow_matrices;
     m_shadow_matrices = NULL;
-    Shaders::destroy();
+    if (CVS->isGLSL())
+    {
+        Shaders::destroy();
+    }
     delete m_wind;
+    delete m_spherical_harmonics;
 }   // ~IrrDriver
 
 // ----------------------------------------------------------------------------
@@ -320,7 +330,9 @@ void IrrDriver::createListOfVideoModes()
         {
             const int w = modes->getVideoModeResolution(i).Width;
             const int h = modes->getVideoModeResolution(i).Height;
-            if (h < MIN_SUPPORTED_HEIGHT || w < MIN_SUPPORTED_WIDTH)
+            if ((h < MIN_SUPPORTED_HEIGHT || w < MIN_SUPPORTED_WIDTH) &&
+                (!(h==600 && w==800 && UserConfigParams::m_artist_debug_mode) &&
+                (!(h==720 && w==1280 && ALLOW_1280_X_720 == true))))
                 continue;
 
             VideoMode mode(w, h);
@@ -334,6 +346,8 @@ void IrrDriver::createListOfVideoModes()
  */
 void IrrDriver::initDevice()
 {
+    SIrrlichtCreationParameters params;
+    
     // If --no-graphics option was used, the null device can still be used.
     if (!ProfileWorld::isNoGraphics())
     {
@@ -416,8 +430,8 @@ void IrrDriver::initDevice()
         m_device->drop();
         m_device  = NULL;
 
-        SIrrlichtCreationParameters params;
-        params.ForceLegacyDevice = UserConfigParams::m_force_legacy_device;
+        params.ForceLegacyDevice = (UserConfigParams::m_force_legacy_device || 
+            UserConfigParams::m_gamepad_visualisation);
 
         // Try 32 and, upon failure, 24 then 16 bit per pixels
         for (int bits=32; bits>15; bits -=8)
@@ -436,7 +450,8 @@ void IrrDriver::initDevice()
             params.WindowSize    =
                 core::dimension2du(UserConfigParams::m_width,
                                    UserConfigParams::m_height);
-
+            params.HandleSRGB    = true;
+            
             /*
             switch ((int)UserConfigParams::m_antialiasing)
             {
@@ -494,6 +509,30 @@ void IrrDriver::initDevice()
     {
         Log::fatal("irr_driver", "Couldn't initialise irrlicht device. Quitting.\n");
     }
+    
+    CVS->init();
+                    
+    // This is the ugly hack for intel driver on linux, which doesn't
+    // use sRGB-capable visual, even if we request it. This causes
+    // the screen to be darker than expected. It affects mesa 10.6 and newer. 
+    // Though we are able to force to use the proper format on mesa side by 
+    // setting WithAlphaChannel parameter.
+    if (!ProfileWorld::isNoGraphics() && CVS->needsSRGBCapableVisualWorkaround())
+    {
+        Log::warn("irr_driver", "Created visual is not sRGB-capable. "
+                                "Re-creating device to workaround the issue.");
+        m_device->closeDevice();
+        m_device->drop();
+
+        params.WithAlphaChannel = true;
+        
+        m_device = createDeviceEx(params);
+        
+        if(!m_device)
+        {
+            Log::fatal("irr_driver", "Couldn't initialise irrlicht device. Quitting.\n");
+        }
+    }
 
     m_scene_manager = m_device->getSceneManager();
     m_gui_env       = m_device->getGUIEnvironment();
@@ -502,14 +541,13 @@ void IrrDriver::initDevice()
 
     m_actual_screen_size = m_video_driver->getCurrentRenderTargetSize();
 
-    CVS->init();
-
+    m_spherical_harmonics = new SphericalHarmonics(m_scene_manager->getAmbientLight().toSColor());
 
     if (UserConfigParams::m_shadows_resolution != 0 &&
         (UserConfigParams::m_shadows_resolution < 512 ||
          UserConfigParams::m_shadows_resolution > 2048))
     {
-        Log::warn("IrrDriver", 
+        Log::warn("irr_driver", 
                "Invalid value for UserConfigParams::m_shadows_resolution : %i",
             (int)UserConfigParams::m_shadows_resolution);
         UserConfigParams::m_shadows_resolution = 0;
@@ -815,7 +853,10 @@ void IrrDriver::applyResolutionSettings()
     GlowPassCmd::getInstance()->kill();
     resetTextureTable();
     // initDevice will drop the current device.
-    Shaders::destroy();
+    if (CVS->isGLSL())
+    {
+        Shaders::destroy();
+    }
     initDevice();
 
     // Re-init GUI engine
@@ -1083,16 +1124,29 @@ scene::IMeshSceneNode *IrrDriver::addOctTree(scene::IMesh *mesh)
 scene::IMeshSceneNode *IrrDriver::addSphere(float radius,
                                             const video::SColor &color)
 {
-    scene::IMeshSceneNode *node = m_scene_manager->addSphereSceneNode(radius);
-    node->setMaterialType(video::EMT_SOLID);
-    scene::IMesh *mesh = node->getMesh();
+    scene::IMesh *mesh = m_scene_manager->getGeometryCreator()
+                       ->createSphereMesh(radius);
+    
     mesh->setMaterialFlag(video::EMF_COLOR_MATERIAL, true);
-    video::SMaterial m;
+    video::SMaterial &m = mesh->getMeshBuffer(0)->getMaterial();
     m.AmbientColor    = color;
     m.DiffuseColor    = color;
     m.EmissiveColor   = color;
     m.BackfaceCulling = false;
-    mesh->getMeshBuffer(0)->getMaterial() = m;
+    m.MaterialType    = video::EMT_SOLID;
+    m.setTexture(0, getUnicolorTexture(video::SColor(128, 255, 105, 180)));
+    m.setTexture(1, getUnicolorTexture(video::SColor(0, 0, 0, 0)));
+
+    if (CVS->isGLSL())
+    {
+        STKMeshSceneNode *node =
+            new STKMeshSceneNode(mesh,
+                                m_scene_manager->getRootSceneNode(),
+                                NULL, -1, "sphere");
+        return node;
+    }
+
+    scene::IMeshSceneNode *node = m_scene_manager->addMeshSceneNode(mesh);
     return node;
 }   // addSphere
 
@@ -1359,14 +1413,20 @@ scene::ISceneNode *IrrDriver::addSkyDome(video::ITexture *texture,
  *  \param back: Texture for the back plane of the box.
  */
 scene::ISceneNode *IrrDriver::addSkyBox(const std::vector<video::ITexture*> &texture,
-    const std::vector<video::ITexture*> &sphericalHarmonics)
+    const std::vector<video::ITexture*> &spherical_harmonics_textures)
 {
     assert(texture.size() == 6);
-    SkyboxTextures = texture;
-    SphericalHarmonicsTextures = sphericalHarmonics;
-    SkyboxCubeMap = 0;
-    SkyboxSpecularProbe = 0;
-    m_skybox_ready = false;
+
+    if (CVS->isGLSL())
+    {
+        m_skybox = new Skybox(texture);
+    }
+
+    if(spherical_harmonics_textures.size() == 6)
+    {
+        m_spherical_harmonics->setTextures(spherical_harmonics_textures);
+    }
+    
     return m_scene_manager->addSkyBoxSceneNode(texture[0], texture[1],
                                                texture[2], texture[3],
                                                texture[4], texture[5]);
@@ -1374,16 +1434,8 @@ scene::ISceneNode *IrrDriver::addSkyBox(const std::vector<video::ITexture*> &tex
 
 void IrrDriver::suppressSkyBox()
 {
-    SkyboxTextures.clear();
-    SphericalHarmonicsTextures.clear();
-    m_skybox_ready = false;
-    if ((SkyboxCubeMap) && (!ProfileWorld::isNoGraphics()))
-    {
-        glDeleteTextures(1, &SkyboxCubeMap);
-        glDeleteTextures(1, &SkyboxSpecularProbe);
-    }
-    SkyboxCubeMap = 0;
-    SkyboxSpecularProbe = 0;
+    delete m_skybox;
+    m_skybox = NULL;
 }
 
 // ----------------------------------------------------------------------------
@@ -1763,7 +1815,7 @@ void IrrDriver::onUnloadWorld()
 void IrrDriver::setAmbientLight(const video::SColorf &light)
 {
     m_scene_manager->setAmbientLight(light);
-    m_skybox_ready = false;
+    m_spherical_harmonics->setAmbientLight(light.toSColor());
 }   // setAmbientLight
 
 video::SColorf IrrDriver::getAmbientLight() const
@@ -2046,7 +2098,7 @@ void IrrDriver::doScreenShot()
     video::IImage* image = m_video_driver->createScreenShot();
     if(!image)
     {
-        Log::error("IrrDriver", "Could not create screen shot.");
+        Log::error("irr_driver", "Could not create screen shot.");
         return;
     }
 
@@ -2125,6 +2177,8 @@ void IrrDriver::update(float dt)
     }
 
     m_wind->update();
+
+    PropertyAnimator::get()->update(dt);
 
     World *world = World::getWorld();
 
@@ -2345,7 +2399,7 @@ void IrrDriver::RTTProvider::setupRTTScene(PtrVector<scene::IMesh, REF>& mesh,
     }
 
     irr_driver->getSceneManager()->setAmbientLight(video::SColor(255, 35, 35, 35) );
-
+    
     const core::vector3df &spot_pos = core::vector3df(0, 30, 40);
     m_light = irr_driver->getSceneManager()
         ->addLightSceneNode(NULL, spot_pos, video::SColorf(1.0f,1.0f,1.0f),

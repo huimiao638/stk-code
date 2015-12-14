@@ -70,6 +70,9 @@ private:
 
     PtrVector<TrackObject, REF> m_tires;
 
+    /** Function to udpate the locations of all karts on the polygon map */
+    void updateKartNodes();
+
 public:
 
     /** Used to show a nice graph when battle is over */
@@ -97,7 +100,6 @@ public:
     virtual void getKartsDisplayInfo(
                           std::vector<RaceGUIBase::KartIconDisplayInfo> *info);
     virtual bool raceHasLaps(){ return false; }
-    virtual unsigned int getRescuePositionIndex(AbstractKart *kart);
 
     virtual const std::string& getIdent() const;
 
