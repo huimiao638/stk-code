@@ -483,6 +483,7 @@ std::set<wchar_t> ScalableFont::getPreloadCharacters(const GUIEngine::TTFLoading
 
             for (u32 i = 47; i < 59; ++i)
                 preload_char.insert((wchar_t)i); //Include chars used by timer and laps count only
+            preload_char.insert((wchar_t)120);   //Used when displaying multiple items, e.g. 6x
             break;
         case T_BOLD:
             preload_char = translations->getCurrentAllChar(); //Loading unique characters
@@ -491,6 +492,7 @@ std::set<wchar_t> ScalableFont::getPreloadCharacters(const GUIEngine::TTFLoading
                 preload_char.insert((wchar_t)i); //Include basic Latin too, starting from A (char code 65)
 
             setlocale(LC_ALL, "en_US.UTF8");
+            std::set<wchar_t> upper;
             std::set<wchar_t>::iterator it = preload_char.begin();
 
             while (it != preload_char.end())
@@ -498,7 +500,15 @@ std::set<wchar_t> ScalableFont::getPreloadCharacters(const GUIEngine::TTFLoading
                 //Only use all capital letter for bold char with latin (<640 of char code).
                 //Remove all characters (>char code 8191) not used by the title
                 if (((iswlower((wchar_t)*it) || !iswalpha((wchar_t)*it)) && *it < 640) || *it > 8191)
+                {
+                    if (*it < 8192 && iswalpha((wchar_t)*it))
+                    {
+                        //Make sure we include all upper case letters,
+                        //because the title font shows all characters as capital letters
+                        upper.insert(towupper((wchar_t)*it));
+                    }
                     it = preload_char.erase(it);
+                }
                 else
                     ++it;
             }
@@ -507,6 +517,7 @@ std::set<wchar_t> ScalableFont::getPreloadCharacters(const GUIEngine::TTFLoading
             for (u32 i = 32; i < 65; ++i)
                 preload_char.insert((wchar_t)i); //Include basic symbol (from space (char code 32) to @(char code 64))
 
+            preload_char.insert(upper.begin(), upper.end());
             preload_char.insert((wchar_t)160);   //Non-breaking space
 
             //Remove Ordinal indicator (char code 170 and 186)
@@ -868,27 +879,27 @@ void ScalableFont::doDraw(const core::stringw& text,
         if (charCollector == NULL)
         {
             //Try to use ceil to make offset calculate correctly when m_scale is smaller than 1
-            s32 glyph_offset_x = ceil((float) area.bearingx*
+            s32 glyph_offset_x = (s32)((float) area.bearingx*
                                  (fallback[i] ? m_scale*m_fallback_font_scale : m_scale));
-            s32 glyph_offset_y = ceil((float) area.offsety*
+            s32 glyph_offset_y = (s32)ceil((float) area.offsety*
                                  (fallback[i] ? m_scale*m_fallback_font_scale : m_scale));
             offset.X += glyph_offset_x;
-            offset.Y += glyph_offset_y + floor(m_type == T_DIGIT ? 20*m_scale : 0); //Additional offset for digit text
+            offset.Y += s32(glyph_offset_y + floor(m_type == T_DIGIT ? 20*m_scale : 0)); //Additional offset for digit text
             offsets.push_back(offset);
             offset.X -= glyph_offset_x;
-            offset.Y -= glyph_offset_y + floor(m_type == T_DIGIT ? 20*m_scale : 0);
+            offset.Y -= s32(glyph_offset_y + floor(m_type == T_DIGIT ? 20*m_scale : 0));
         }
         else //Billboard text specific
         {
-            s32 glyph_offset_x = ceil((float) area.bearingx*
+            s32 glyph_offset_x = (s32)ceil((float) area.bearingx*
                                  (fallback[i] ? m_scale*m_fallback_font_scale : m_scale));
-            s32 glyph_offset_y = ceil((float) area.offsety_bt*
+            s32 glyph_offset_y = (s32)ceil((float) area.offsety_bt*
                                  (fallback[i] ? m_scale*m_fallback_font_scale : m_scale));
             offset.X += glyph_offset_x;
-            offset.Y += glyph_offset_y + floor(m_type == T_DIGIT ? 20*m_scale : 0); //Additional offset for digit text
+            offset.Y += s32(glyph_offset_y + floor(m_type == T_DIGIT ? 20*m_scale : 0)); //Additional offset for digit text
             offsets.push_back(offset);
             offset.X -= glyph_offset_x;
-            offset.Y -= glyph_offset_y + floor(m_type == T_DIGIT ? 20*m_scale : 0);
+            offset.Y -= s32(glyph_offset_y + floor(m_type == T_DIGIT ? 20*m_scale : 0));
         }
         // Invisible character. add something to the array anyway so that
         // indices from the various arrays remain in sync

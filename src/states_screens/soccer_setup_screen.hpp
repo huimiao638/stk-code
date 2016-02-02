@@ -37,14 +37,13 @@ class SoccerSetupScreen : public GUIEngine::Screen, public GUIEngine::ScreenSing
     {
         GUIEngine::ModelViewWidget* view;
         bool                        confirmed;
-        int                         local_player_id;
         SoccerTeam                  team;
 
-        KartViewInfo() : view(NULL), confirmed(false), local_player_id(-1), team(SOCCER_TEAM_NONE) {}
+        KartViewInfo() : view(NULL), confirmed(false), team(SOCCER_TEAM_NONE) {}
     };
 
     AlignedArray<KartViewInfo>  m_kart_view_info;
-    
+
     bool m_schedule_continue;
 
 public:
@@ -76,7 +75,6 @@ public:
 
 private:
     bool areAllKartsConfirmed() const;
-    int getNumKartsInTeam(int team);
     int getNumConfirmedKarts();
     void updateKartViewsLayout();
 };

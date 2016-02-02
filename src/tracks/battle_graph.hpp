@@ -23,18 +23,13 @@
 #include <string>
 #include <set>
 
+#include "tracks/graph_structure.hpp"
 #include "tracks/navmesh.hpp"
 
-class Navmesh;
+class GraphStructure;
 class Item;
 class ItemManager;
-
-namespace irr
-{
-    namespace scene { class ISceneNode; class IMesh; class IMeshBuffer; }
-    namespace video { class ITexture; }
-}
-using namespace irr;
+class Navmesh;
 
 /**
 * \ingroup tracks
@@ -46,7 +41,7 @@ using namespace irr;
 *    design pattern to create an instance).
 \ingroup tracks
 */
-class BattleGraph
+class BattleGraph : public GraphStructure
 {
 
 private:
@@ -56,26 +51,34 @@ private:
     std::vector< std::vector< float > > m_distance_matrix;
     /** The matrix that is used to store computed shortest paths */
     std::vector< std::vector< int > > m_parent_poly;
-     /** For debug mode only: the node of the debug mesh. */
-    scene::ISceneNode       *m_node;
-    /** For debug only: the mesh of the debug mesh. */
-    scene::IMesh            *m_mesh;
-    /** For debug only: the actual mesh buffer storing the quads. */
-    scene::IMeshBuffer      *m_mesh_buffer;
 
     /** Stores the name of the file containing the NavMesh data */
-    std::string             m_navmesh_file;
+    std::string              m_navmesh_file;
 
-    std::vector< std::pair<Item*, int> > m_items_on_graph;
+    std::vector< std::pair<const Item*, int> > m_items_on_graph;
 
     void buildGraph(NavMesh*);
     void computeFloydWarshall();
-    void createMesh(bool enable_transparency=false,
-                    const video::SColor *track_color=NULL);
-    void findItemsOnGraphNodes(ItemManager*);
 
     BattleGraph(const std::string &navmesh_file_name);
     ~BattleGraph(void);
+
+    // ------------------------------------------------------------------------
+    virtual void set3DVerticesOfGraph(int i, video::S3DVertex *v,
+                                      const video::SColor &color) const
+                                { NavMesh::get()->setVertices(i, v, color); }
+    // ------------------------------------------------------------------------
+    virtual void getGraphBoundingBox(Vec3 *min, Vec3 *max) const
+                                { NavMesh::get()->getBoundingBox(min, max); }
+    // ------------------------------------------------------------------------
+    virtual const bool isNodeInvisible(int n) const
+                                                            { return false; }
+    // ------------------------------------------------------------------------
+    virtual const bool isNodeInvalid(int n) const
+     { return (NavMesh::get()->getNavPoly(n).getVerticesIndex()).size()!=4; }
+    // ------------------------------------------------------------------------
+    virtual const bool hasLapLine() const
+                                                            { return false; }
 
 public:
     static const int UNKNOWN_POLY;
@@ -105,24 +108,28 @@ public:
     // ----------------------------------------------------------------------
     /** Returns the number of nodes in the BattleGraph (equal to the number of
     *    polygons in the NavMesh */
-    unsigned int    getNumNodes() const { return m_distance_matrix.size(); }
+    virtual const unsigned int getNumNodes() const
+                                         { return m_distance_matrix.size(); }
 
     // ----------------------------------------------------------------------
     /** Returns the NavPoly corresponding to the i-th node of the BattleGraph */
     const NavPoly&    getPolyOfNode(int i) const
-                                        { return NavMesh::get()->getNavPoly(i); }
+                                    { return NavMesh::get()->getNavPoly(i); }
 
     // ----------------------------------------------------------------------
     /** Returns the next polygon on the shortest path from i to j.
      *    Note: m_parent_poly[j][i] contains the parent of i on path from j to i,
      *    which is the next node on the path from i to j (undirected graph) */
-    const int & getNextShortestPathPoly(int i, int j) const;
+    const int &       getNextShortestPathPoly(int i, int j) const;
 
-    const std::vector< std::pair<Item*, int> >& getItemList()
-                                        { return m_items_on_graph; }
+    const std::vector < std::pair<const Item*, int> >& getItemList()
+                                                 { return m_items_on_graph; }
 
-    void            createDebugMesh();
-    void            cleanupDebugMesh();
+    void              findItemsOnGraphNodes();
+    // ----------------------------------------------------------------------
+    int               pointToNode(const int cur_node,
+                                  const Vec3& cur_point,
+                                  bool ignore_vertical) const;
 };    //BattleGraph
 
 #endif

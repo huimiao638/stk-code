@@ -44,6 +44,7 @@
 #include "karts/kart_gfx.hpp"
 #include "karts/rescue_animation.hpp"
 #include "modes/overworld.hpp"
+#include "modes/soccer_world.hpp"
 #include "modes/world.hpp"
 #include "io/file_manager.hpp"
 #include "items/attachment.hpp"
@@ -56,8 +57,8 @@
 #include "karts/max_speed.hpp"
 #include "karts/skidding.hpp"
 #include "modes/linear_world.hpp"
+#include "network/network_config.hpp"
 #include "network/network_world.hpp"
-#include "network/network_manager.hpp"
 #include "physics/btKart.hpp"
 #include "physics/btKartRaycast.hpp"
 #include "physics/physics.hpp"
@@ -113,6 +114,7 @@ Kart::Kart (const std::string& ident, unsigned int world_kart_id,
     m_race_position        = position;
     m_collected_energy     = 0;
     m_finished_race        = false;
+    m_race_result          = false;
     m_finish_time          = 0.0f;
     m_bubblegum_time       = 0.0f;
     m_bubblegum_torque     = 0.0f;
@@ -743,7 +745,7 @@ void Kart::startEngineSFX()
         // player karts twice as loud as AIs toghether
         const float players_volume = (np * 2.0f) / (np*2.0f + np);
 
-        if (m_controller->isPlayerController())
+        if (m_controller->isLocalPlayerController())
             m_engine_sound->setVolume( players_volume / np );
         else
             m_engine_sound->setVolume( (1.0f - players_volume) / nai );
@@ -836,71 +838,101 @@ void Kart::finishedRace(float time)
     m_kart_model->finishedRace();
     race_manager->kartFinishedRace(this, time);
 
+    if ((race_manager->getMinorMode() == RaceManager::MINOR_MODE_NORMAL_RACE ||
+         race_manager->getMinorMode() == RaceManager::MINOR_MODE_TIME_TRIAL  ||
+         race_manager->getMinorMode() == RaceManager::MINOR_MODE_FOLLOW_LEADER)
+         && m_controller->isPlayerController())
+    {
+        RaceGUIBase* m = World::getWorld()->getRaceGUI();
+        if (m)
+        {
+            if (race_manager->
+                getMinorMode() == RaceManager::MINOR_MODE_FOLLOW_LEADER &&
+                getPosition() == 2)
+                m->addMessage(_("You won the race!"), this, 2.0f);
+            else if (race_manager->getMinorMode() == RaceManager::MINOR_MODE_NORMAL_RACE ||
+                     race_manager->getMinorMode() == RaceManager::MINOR_MODE_TIME_TRIAL)
+            {
+                m->addMessage((getPosition() == 1 ?
+                _("You won the race!") : _("You finished the race!")) ,
+                this, 2.0f);
+            }
+        }
+    }
+
+    if (race_manager->getMinorMode() == RaceManager::MINOR_MODE_NORMAL_RACE   ||
+        race_manager->getMinorMode() == RaceManager::MINOR_MODE_TIME_TRIAL    ||
+        race_manager->getMinorMode() == RaceManager::MINOR_MODE_FOLLOW_LEADER ||
+        race_manager->getMinorMode() == RaceManager::MINOR_MODE_3_STRIKES     ||
+        race_manager->getMinorMode() == RaceManager::MINOR_MODE_SOCCER        ||
+        race_manager->getMinorMode() == RaceManager::MINOR_MODE_EASTER_EGG)
+    {
+        // Save for music handling in race result gui
+        setRaceResult();
+        setController(new EndController(this, m_controller->getPlayer(),
+                                        m_controller));
+        // Skip animation if this kart is eliminated
+        if (m_eliminated) return;
+
+        m_kart_model->setAnimation(m_race_result ?
+            KartModel::AF_WIN_START : KartModel::AF_LOSE_START);
+    }
+}   // finishedRace
+
+//-----------------------------------------------------------------------------
+void Kart::setRaceResult()
+{
     if (race_manager->getMinorMode() == RaceManager::MINOR_MODE_NORMAL_RACE ||
         race_manager->getMinorMode() == RaceManager::MINOR_MODE_TIME_TRIAL)
     {
-        // in modes that support it, start end animation
-        setController(new EndController(this, m_controller->getPlayer(),
-                                        m_controller));
-        if (m_controller->isPlayerController()) // if player is on this computer
+        if (m_controller->isLocalPlayerController()) // if player is on this computer
         {
             PlayerProfile *player = PlayerManager::getCurrentPlayer();
             const ChallengeStatus *challenge = player->getCurrentChallengeStatus();
             // In case of a GP challenge don't make the end animation depend
             // on if the challenge is fulfilled
-            if(challenge && !challenge->getData()->isGrandPrix())
+            if (challenge && !challenge->getData()->isGrandPrix())
             {
-                if(challenge->getData()->isChallengeFulfilled())
-                    m_kart_model->setAnimation(KartModel::AF_WIN_START);
+                if (challenge->getData()->isChallengeFulfilled())
+                    m_race_result = true;
                 else
-                    m_kart_model->setAnimation(KartModel::AF_LOSE_START);
-
+                    m_race_result = false;
             }
-            else if(m_race_position<=0.5f*race_manager->getNumberOfKarts() ||
-                    m_race_position==1)
-                    m_kart_model->setAnimation(KartModel::AF_WIN_START);
+            else if (this->getPosition() <= 0.5f*race_manager->getNumberOfKarts() ||
+                     this->getPosition() == 1)
+                m_race_result = true;
             else
-                m_kart_model->setAnimation(KartModel::AF_LOSE_START);
-
-            RaceGUIBase* m = World::getWorld()->getRaceGUI();
-            if(m)
-            {
-                m->addMessage((getPosition() == 1 ? _("You won the race!") : _("You finished the race!")) ,
-                              this, 2.0f);
-            }
+                m_race_result = false;
         }
-    }
-    else if (race_manager->getMinorMode() == RaceManager::MINOR_MODE_FOLLOW_LEADER)
-    {
-        // start end animation
-        setController(new EndController(this, m_controller->getPlayer(),
-                                        m_controller));
-        if(m_race_position<=2)
-            m_kart_model->setAnimation(KartModel::AF_WIN_START);
-        else if(m_race_position>=0.7f*race_manager->getNumberOfKarts())
-            m_kart_model->setAnimation(KartModel::AF_LOSE_START);
-
-        RaceGUIBase* m = World::getWorld()->getRaceGUI();
-        if(m)
+        else
         {
-            if (getPosition() == 2)
-                m->addMessage(_("You won the race!"), this, 2.0f);
+            if (this->getPosition() <= 0.5f*race_manager->getNumberOfKarts() ||
+                this->getPosition() == 1)
+                m_race_result = true;
+            else
+                m_race_result = false;
         }
     }
-    else if (race_manager->getMinorMode() == RaceManager::MINOR_MODE_3_STRIKES ||
-             race_manager->getMinorMode() == RaceManager::MINOR_MODE_SOCCER)
+    else if (race_manager->getMinorMode() == RaceManager::MINOR_MODE_FOLLOW_LEADER ||
+             race_manager->getMinorMode() == RaceManager::MINOR_MODE_3_STRIKES)
     {
-        setController(new EndController(this, m_controller->getPlayer(),
-                                        m_controller));
+        // the kart wins if it isn't eliminated
+        m_race_result = !this->isEliminated();
+    }
+    else if (race_manager->getMinorMode() == RaceManager::MINOR_MODE_SOCCER)
+    {
+        SoccerWorld* sw = dynamic_cast<SoccerWorld*>(World::getWorld());
+        m_race_result = sw->getKartSoccerResult(this->getWorldKartId());
     }
     else if (race_manager->getMinorMode() == RaceManager::MINOR_MODE_EASTER_EGG)
     {
-        m_kart_model->setAnimation(KartModel::AF_WIN_START);
-        setController(new EndController(this, m_controller->getPlayer(),
-                                        m_controller));
+        // Easter egg mode only has one player, so always win
+        m_race_result = true;
     }
+    else
+        Log::warn("Kart", "Unknown game mode given.");
 
-}   // finishedRace
+}   // setRaceResult
 
 //-----------------------------------------------------------------------------
 /** Called when an item is collected. It will either adjust the collected
@@ -1243,7 +1275,7 @@ void Kart::update(float dt)
     // automatic rescue
     // But only do this if auto-rescue is enabled (i.e. it will be disabled in
     // battle mode), and the material the kart is driving on does not have
-    // gravity (which can
+    // gravity (which atm affects the roll angle).
     if(World::getWorld()->getTrack()->isAutoRescueEnabled()     &&
         (!m_terrain_info->getMaterial() ||
          !m_terrain_info->getMaterial()->hasGravity())          &&
@@ -1360,8 +1392,10 @@ void Kart::update(float dt)
     PROFILER_POP_CPU_MARKER();
 
     // Check if any item was hit.
-    // check it if we're not in a network world, or if we're on the server (when network mode is on)
-    if (!NetworkWorld::getInstance()->isRunning() || NetworkManager::getInstance()->isServer())
+    // check it if we're not in a network world, or if we're on the server
+    // (when network mode is on)
+    if (!NetworkWorld::getInstance()->isRunning() ||
+        NetworkConfig::get()->isServer())
         ItemManager::get()->checkItemHit(this);
 
     static video::SColor pink(255, 255, 133, 253);
@@ -1519,7 +1553,7 @@ void Kart::handleMaterialSFX(const Material *material)
         // multiple listeners. This would make the sounds of all AIs be
         // audible at all times. So silence AI karts.
         if (s.size()!=0 && (race_manager->getNumPlayers()==1 ||
-                            m_controller->isPlayerController()  ) )
+                            m_controller->isLocalPlayerController()  ) )
         {
             m_terrain_sound = SFXManager::get()->createSoundSource(s);
             m_terrain_sound->play();
@@ -1601,7 +1635,7 @@ void Kart::handleMaterialGFX()
     // has the 'below surface' flag set. Detect if there is a surface
     // on top of the kart.
     // --------------------------------------------------------------
-    if (m_controller->isPlayerController() && !hasFinishedRace())
+    if (m_controller->isLocalPlayerController() && !hasFinishedRace())
     {
         for(unsigned int i=0; i<Camera::getNumCameras(); i++)
         {

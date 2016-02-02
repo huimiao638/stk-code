@@ -23,11 +23,9 @@
 #include <IMeshSceneNode.h>
 
 #include "config/user_config.hpp"
-#include "graphics/irr_driver.hpp"
 #include "items/item_manager.hpp"
 #include "tracks/navmesh.hpp"
 #include "utils/log.hpp"
-#include "utils/vec3.hpp"
 
 const int BattleGraph::UNKNOWN_POLY  = -1;
 BattleGraph * BattleGraph::m_battle_graph = NULL;
@@ -37,13 +35,24 @@ BattleGraph * BattleGraph::m_battle_graph = NULL;
 *    by the AI. */
 BattleGraph::BattleGraph(const std::string &navmesh_file_name)
 {
+    m_items_on_graph.clear();
+
     NavMesh::create(navmesh_file_name);
     m_navmesh_file = navmesh_file_name;
     buildGraph(NavMesh::get());
     computeFloydWarshall();
-    findItemsOnGraphNodes(ItemManager::get());
-
 } // BattleGraph
+
+// -----------------------------------------------------------------------------
+/** Destructor, destroys NavMesh and the debug mesh if it exists */
+BattleGraph::~BattleGraph(void)
+{
+    NavMesh::destroy();
+
+    if(UserConfigParams::m_track_debug)
+        cleanupDebugMesh();
+    GraphStructure::destroyRTT();
+} // ~BattleGraph
 
 // -----------------------------------------------------------------------------
 /** Builds a graph from an existing NavMesh. The graph is stored as an adjacency
@@ -113,156 +122,23 @@ void BattleGraph::computeFloydWarshall()
 }    // computeFloydWarshall
 
 // -----------------------------------------------------------------------------
-/** Destructor, destroys NavMesh and the debug mesh if it exists */
-BattleGraph::~BattleGraph(void)
+
+/** Maps items on battle graph */
+void BattleGraph::findItemsOnGraphNodes()
 {
-    NavMesh::destroy();
-
-    if(UserConfigParams::m_track_debug)
-        cleanupDebugMesh();
-} // ~BattleGraph
-
-// -----------------------------------------------------------------------------
-/** Creates the actual mesh that is used by createDebugMesh() */
-void BattleGraph::createMesh(bool enable_transparency,
-                           const video::SColor *track_color)
-{
-    // The debug track will not be lighted or culled.
-    video::SMaterial m;
-    m.BackfaceCulling  = false;
-    m.Lighting         = false;
-    if(enable_transparency)
-        m.MaterialType = video::EMT_TRANSPARENT_ALPHA_CHANNEL;
-    m_mesh             = irr_driver->createQuadMesh(&m);
-    m_mesh_buffer      = m_mesh->getMeshBuffer(0);
-    assert(m_mesh_buffer->getVertexType()==video::EVT_STANDARD);
-
-    // Eps is used to raise the track debug quads a little bit higher than
-    // the ground, so that they are actually visible.
-    core::vector3df eps(0, 0.4f, 0);
-    video::SColor c = video::SColor(255, 255, 0, 0);
-
-    // Declare vector to hold new converted vertices, vertices are copied over
-    // for each polygon, although it results in redundant vertex copies in the
-    // final vector, this is the only way I know to make each poly have different color.
-     std::vector<video::S3DVertex> new_v;
-
-    // Declare vector to hold indices
-    std::vector<irr::u16> ind;
-
-    // Now add all polygons
-    int i=0;
-    for(unsigned int count=0; count<getNumNodes(); count++)
-    {
-        ///compute colors
-        if(!track_color)
-        {
-            c.setAlpha(178);
-            //c.setRed ((i%2) ? 255 : 0);
-            //c.setBlue((i%3) ? 0 : 255);
-            c.setRed(7*i%256);
-            c.setBlue((2*i)%256);
-            c.setGreen((3*i)%256);
-        }
-
-        NavPoly poly = NavMesh::get()->getNavPoly(count);
-
-        //std::vector<int> vInd = poly.getVerticesIndex();
-        const std::vector<Vec3>& v = poly.getVertices();
-
-        // Number of triangles in the triangle fan
-        unsigned int numberOfTriangles = v.size() -2 ;
-
-        // Set up the indices for the triangles
-
-         for( unsigned int count = 1; count<=numberOfTriangles; count++)
-         {
-             video::S3DVertex v1,v2,v3;
-             v1.Pos=v[0].toIrrVector() + eps;
-             v2.Pos=v[count].toIrrVector() + eps;
-             v3.Pos=v[count+1].toIrrVector() + eps;
-
-             v1.Color = c;
-             v2.Color = c;
-             v3.Color = c;
-
-             core::triangle3df tri(v1.Pos, v2.Pos, v3.Pos);
-             core::vector3df normal = tri.getNormal();
-             normal.normalize();
-             v1.Normal = normal;
-             v2.Normal = normal;
-             v3.Normal = normal;
-
-             new_v.push_back(v1);
-             new_v.push_back(v2);
-             new_v.push_back(v3);
-
-             ind.push_back(i++);
-             ind.push_back(i++);
-             ind.push_back(i++);
-        }
-
-    }
-
-    m_mesh_buffer->append(new_v.data(), new_v.size(), ind.data(), ind.size());
-
-    // Instead of setting the bounding boxes, we could just disable culling,
-    // since the debug track should always be drawn.
-    //m_node->setAutomaticCulling(scene::EAC_OFF);
-    m_mesh_buffer->recalculateBoundingBox();
-    m_mesh->setBoundingBox(m_mesh_buffer->getBoundingBox());
-
-}   // createMesh
-
-// -----------------------------------------------------------------------------
-/** Creates the debug mesh to display the quad graph on top of the track
- *  model. */
-void BattleGraph::createDebugMesh()
-{
-    if(getNumNodes()<=0) return;  // no debug output if not graph
-
-    createMesh(/*enable_transparency*/false);
-    m_node = irr_driver->addMesh(m_mesh, "track-debug-mesh");
-#ifdef DEBUG
-//    m_node->setName("track-debug-mesh");
-#endif
-
-}   // createDebugMesh
-
-// -----------------------------------------------------------------------------
-/** Cleans up the debug mesh */
-void BattleGraph::cleanupDebugMesh()
-{
-    if(m_node != NULL)
-        irr_driver->removeNode(m_node);
-
-    m_node = NULL;
-    // No need to call irr_driber->removeMeshFromCache, since the mesh
-    // was manually made and so never added to the mesh cache.
-    m_mesh->drop();
-    m_mesh = NULL;
-}
-
-// -----------------------------------------------------------------------------
-
-void BattleGraph::findItemsOnGraphNodes(ItemManager * item_manager)
-{
+    const ItemManager* item_manager = ItemManager::get();
     unsigned int item_count = item_manager->getNumberOfItems();
 
     for (unsigned int i = 0; i < item_count; ++i)
     {
-        Item* item = item_manager->getItem(i);
+        const Item* item = item_manager->getItem(i);
         Vec3 xyz = item->getXYZ();
         int polygon = BattleGraph::UNKNOWN_POLY;
 
         for (unsigned int j = 0; j < this->getNumNodes(); ++j)
         {
-            if (NavMesh::get()->getNavPoly(j).pointInPoly(xyz))
-            {
-                float dist = xyz.getY() - NavMesh::get()->getCenterOfPoly(j).getY();
-                if (fabsf(dist) < 1.0f )
-                    polygon = j;
-            }
+            if (NavMesh::get()->getNavPoly(j).pointInPoly(xyz, false))
+                polygon = j;
         }
 
         if (polygon != BattleGraph::UNKNOWN_POLY)
@@ -273,7 +149,70 @@ void BattleGraph::findItemsOnGraphNodes(ItemManager * item_manager)
         else
             Log::debug("BattleGraph","Can't map item number %d with a suitable polygon", i);
     }
-}
+}    // findItemsOnGraphNodes
+
+// -----------------------------------------------------------------------------
+
+int BattleGraph::pointToNode(const int cur_node,
+                             const Vec3& cur_point,
+                             bool ignore_vertical) const
+{
+    int final_node = BattleGraph::UNKNOWN_POLY;
+
+    if (cur_node == BattleGraph::UNKNOWN_POLY)
+    {
+        // Try all nodes in the battle graph
+        bool found = false;
+        unsigned int node = 0;
+        while (!found && node < this->getNumNodes())
+        {
+            const NavPoly& p_all = this->getPolyOfNode(node);
+            if (p_all.pointInPoly(cur_point, ignore_vertical))
+            {
+                final_node = node;
+                found = true;
+            }
+            node++;
+        }
+    }
+    else
+    {
+        // Check if the point is still on the same node
+        const NavPoly& p_cur = this->getPolyOfNode(cur_node);
+        if (p_cur.pointInPoly(cur_point, ignore_vertical)) return cur_node;
+
+        // If not then check all adjacent polys
+        const std::vector<int>& adjacents = NavMesh::get()
+            ->getAdjacentPolys(cur_node);
+
+        bool found = false;
+        unsigned int num = 0;
+        while (!found && num < adjacents.size())
+        {
+            const NavPoly& p_temp = this->getPolyOfNode(adjacents[num]);
+            if (p_temp.pointInPoly(cur_point, ignore_vertical))
+            {
+                final_node = adjacents[num];
+                found = true;
+            }
+            num++;
+        }
+
+        // Current node is still unkown
+        if (final_node == BattleGraph::UNKNOWN_POLY)
+        {
+            // Calculated distance from saved node to current position,
+            // if it's close enough than use the saved node anyway, it
+            // may happen when the kart stays on the edge of obstacles
+            const NavPoly& p = this->getPolyOfNode(cur_node);
+            const float dist = (p.getCenter() - cur_point).length_2d();
+
+            if (dist < 3.0f)
+                final_node = cur_node;
+        }
+    }
+    return final_node;
+}    // pointToNode
 
 // -----------------------------------------------------------------------------
 
@@ -282,4 +221,4 @@ const int & BattleGraph::getNextShortestPathPoly(int i, int j) const
     if (i == BattleGraph::UNKNOWN_POLY || j == BattleGraph::UNKNOWN_POLY)
         return BattleGraph::UNKNOWN_POLY;
     return m_parent_poly[j][i];
-}
+}    // getNextShortestPathPoly
