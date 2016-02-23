@@ -15,47 +15,33 @@
 //  along with this program; if not, write to the Free Software
 //  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
-#ifndef HEADER_SERVER_SELECTION_HPP
-#define HEADER_SERVER_SELECTION_HPP
+
+#ifndef __HEADER_ONLINE_PROFILE_SERVERS_HPP__
+#define __HEADER_ONLINE_PROFILE_SERVERS_HPP__
+
+#include <string>
+#include <irrString.h>
 
 #include "guiengine/screen.hpp"
 #include "guiengine/widgets.hpp"
-
-namespace Online { class XMLRequest; }
+#include "states_screens/online_profile_base.hpp"
 
 namespace GUIEngine { class Widget; }
 
+
 /**
-  * \brief ServerSelection
+  * \brief Online profiel overview screen
   * \ingroup states_screens
   */
-class ServerSelection :  public GUIEngine::Screen,
-                         public GUIEngine::ScreenSingleton<ServerSelection>,
-                         public GUIEngine::IListWidgetHeaderListener
+class OnlineProfileServers : public OnlineProfileBase, public GUIEngine::ScreenSingleton<OnlineProfileServers>
 {
-    friend class GUIEngine::ScreenSingleton<ServerSelection>;
+protected:
+    OnlineProfileServers();
 
-private:
-    ServerSelection();
-    ~ServerSelection();
-
-    GUIEngine::IconButtonWidget *               m_reload_widget;
-    GUIEngine::LabelWidget *                    m_update_status;
-    GUIEngine::ListWidget *                     m_server_list_widget;
-
-    /** \brief To check (and set) if sort order is descending **/
-    bool                                        m_sort_desc;
-
-    /** A pointer to the http request for getting a server list. */
-    const Online::XMLRequest *m_refresh_request;
-
+    void doQuickPlay();
 
 public:
-
-    void refresh();
-
-    /** Load the addons into the main list.*/
-    void loadList();
+    friend class GUIEngine::ScreenSingleton<OnlineProfileServers>;
 
     /** \brief implement callback from parent class GUIEngine::Screen */
     virtual void loadedFromFile() OVERRIDE;
@@ -65,17 +51,7 @@ public:
                                const int playerID) OVERRIDE;
 
     /** \brief implement callback from parent class GUIEngine::Screen */
-    virtual void beforeAddingWidget() OVERRIDE;
-
-    virtual void onColumnClicked(int columnId) OVERRIDE;
-
     virtual void init() OVERRIDE;
-
-    virtual void tearDown() OVERRIDE;
-
-    /** \brief implement callback from parent class GUIEngine::Screen */
-    virtual void onUpdate(float dt) OVERRIDE;
-
-};   // ServerSelection
+};
 
 #endif

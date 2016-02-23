@@ -48,7 +48,7 @@
 #include "states_screens/main_menu_screen.hpp"
 #include "states_screens/networking_lobby.hpp"
 #include "states_screens/network_kart_selection.hpp"
-#include "states_screens/online_screen.hpp"
+#include "states_screens/online_profile_servers.hpp"
 #include "states_screens/race_setup_screen.hpp"
 #include "states_screens/server_selection.hpp"
 #include "tracks/track.hpp"
@@ -339,7 +339,7 @@ void RaceResultGUI::eventCallback(GUIEngine::Widget* widget,
             race_manager->exitRace();
             race_manager->setAIKartOverride("");
             Screen* newStack[] = {MainMenuScreen::getInstance(),
-                                  OnlineScreen::getInstance(),
+                                  OnlineProfileServers::getInstance(),
                                   ServerSelection::getInstance(),
                                   NetworkingLobby::getInstance(),
                                   NULL};
@@ -484,9 +484,6 @@ void RaceResultGUI::determineTableLayout()
             ri->m_kart_name   = race_manager->getKartInfo(rm_id).getPlayerName();
         else
             ri->m_kart_name   = translations->fribidize(kart->getName());
-
-        ri->m_player          = ri->m_is_player_kart
-                              ? kart->getController()->getPlayer() : NULL;
 
         video::ITexture *icon =
             kart->getKartProperties()->getIconMaterial()->getTexture();
@@ -861,8 +858,6 @@ void RaceResultGUI::determineGPLayout()
             ri->m_kart_name  = translations->fribidize(kart->getName());
 
         ri->m_is_player_kart = kart->getController()->isLocalPlayerController();
-        ri->m_player         = ri->m_is_player_kart
-                             ? kart->getController()->getPlayer() : NULL;
 
         // In FTL karts do have a time, which is shown even when the kart
         // is eliminated
@@ -1171,22 +1166,14 @@ void RaceResultGUI::displaySoccerResults()
 
 void RaceResultGUI::clearHighscores()
 {
-    m_highscore_who = "";
-    m_highscore_player = NULL;
     m_highscore_rank = 0;
-    m_highscore_time = -1;
 }   // clearHighscores
 
 //-----------------------------------------------------------------------------
 
-void RaceResultGUI::setHighscore(const std::string &who,
-                                 StateManager::ActivePlayer* player, int rank,
-                                 int time)
+void RaceResultGUI::setHighscore(int rank)
 {
-    m_highscore_who = who;
-    m_highscore_player = player;
     m_highscore_rank = rank;
-    m_highscore_time = time;
 }   // setHighscore
 
 // ----------------------------------------------------------------------------
