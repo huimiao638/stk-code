@@ -18,7 +18,6 @@
 #ifndef HEADER_SHADERS_HPP
 #define HEADER_SHADERS_HPP
 
-#include "config/user_config.hpp"
 #include "graphics/shader.hpp"
 #include "graphics/shared_gpu_objects.hpp"
 #include "graphics/texture_shader.hpp"
@@ -144,11 +143,18 @@ public:
     };   // ObjectPass1Shader
 
     // ========================================================================
-    class ObjectPass2Shader : public TextureShader < ObjectPass2Shader, 5,
+    class ObjectPass2Shader : public TextureShader < ObjectPass2Shader, 6,
                                                  core::matrix4, core::matrix4 >
     {
+    private:
+        GLint m_color_change_location;
     public:
         ObjectPass2Shader();
+        virtual bool changeableColor(float hue = 0.0f, float min_sat = 0.0f) const OVERRIDE
+        {
+            glUniform2f(m_color_change_location, hue, min_sat);
+            return true;
+        }   // changeableColor
     };   // ObjectPass2Shader
 
     // ========================================================================

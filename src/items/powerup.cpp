@@ -294,7 +294,7 @@ void Powerup::use()
         for(unsigned int i = 0 ; i < world->getNumKarts(); ++i)
         {
             AbstractKart *kart=world->getKart(i);
-            if(kart->isEliminated()) continue;
+            if(kart->isEliminated() || kart->isInvulnerable()) continue;
             if(kart == m_owner) continue;
             if(kart->getPosition() == 1)
             {
@@ -328,7 +328,7 @@ void Powerup::use()
             for(unsigned int i = 0 ; i < world->getNumKarts(); ++i)
             {
                 AbstractKart *kart=world->getKart(i);
-                if(kart->isEliminated() || kart== m_owner) continue;
+                if(kart->isEliminated() || kart== m_owner || kart->isInvulnerable()) continue;
                 if(kart->isShielded())
                 {
                     kart->decreaseShieldTime();
@@ -407,7 +407,7 @@ void Powerup::hitBonusBox(const Item &item, int add_info)
         {
             new_powerup = powerup_manager->getRandomPowerup(position, &n);
             if(new_powerup != PowerupManager::POWERUP_RUBBERBALL ||
-                ( World::getWorld()->getTime() - powerup_manager->getBallCollectTime()) >
+                ( World::getWorld()->getTimeSinceStart() - powerup_manager->getBallCollectTime()) >
                   RubberBall::getTimeBetweenRubberBalls() )
                 break;
         }

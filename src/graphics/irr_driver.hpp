@@ -56,6 +56,7 @@ namespace irr
 using namespace irr;
 
 class RTT;
+class RenderInfo;
 class FrameBuffer;
 class ShadowImportanceProvider;
 class AbstractKart;
@@ -286,8 +287,8 @@ private:
     bool                 m_boundingboxesviz;
     /** Performance stats */
     unsigned             m_last_light_bucket_distance;
-    unsigned             object_count[PASS_COUNT];
-    unsigned             poly_count[PASS_COUNT];
+    unsigned             m_object_count[PASS_COUNT];
+    unsigned             m_poly_count[PASS_COUNT];
     u32                  m_renderpass;
     class STKMeshSceneNode *m_sun_interposer;
     core::vector3df m_sun_direction;
@@ -386,7 +387,9 @@ public:
                  const video::SColor &color=video::SColor(128, 255, 255, 255));
     scene::IMeshSceneNode*addMesh(scene::IMesh *mesh,
                                   const std::string& debug_name,
-                                  scene::ISceneNode *parent=NULL);
+                                  scene::ISceneNode *parent = NULL,
+                                  RenderInfo* render_info = NULL,
+                                  bool all_parts_colorized = false);
     PerCameraNode        *addPerCameraNode(scene::ISceneNode* node,
                                            scene::ICameraSceneNode* cam,
                                            scene::ISceneNode *parent = NULL);
@@ -406,7 +409,11 @@ public:
     void                  removeMeshFromCache(scene::IMesh *mesh);
     void                  removeTexture(video::ITexture *t);
     scene::IAnimatedMeshSceneNode
-        *addAnimatedMesh(scene::IAnimatedMesh *mesh, const std::string& debug_name, scene::ISceneNode* parent = NULL);
+        *addAnimatedMesh(scene::IAnimatedMesh *mesh,
+                         const std::string& debug_name,
+                         scene::ISceneNode* parent = NULL,
+                         RenderInfo* render_info = NULL,
+                         bool all_parts_colorized = false);
     scene::ICameraSceneNode
                          *addCameraSceneNode();
     Camera               *addCamera(unsigned int index, AbstractKart *kart);

@@ -61,6 +61,13 @@ MainLoop::~MainLoop()
  */
 float MainLoop::getLimitedDt()
 {
+    // In profile mode without graphics, run with a fixed dt of 1/60
+    if ((ProfileWorld::isProfileMode() && ProfileWorld::isNoGraphics()) ||
+        UserConfigParams::m_arena_ai_stats)
+    {
+        return 1.0f/60.0f;
+    }
+
     IrrlichtDevice* device = irr_driver->getDevice();
     m_prev_time = m_curr_time;
 
@@ -119,8 +126,6 @@ float MainLoop::getLimitedDt()
  */
 void MainLoop::updateRace(float dt)
 {
-    if(ProfileWorld::isProfileMode()) dt=1.0f/60.0f;
-
     // The race event manager will update world in case of an online race
     if (RaceEventManager::getInstance<RaceEventManager>()->isRunning())
         RaceEventManager::getInstance<RaceEventManager>()->update(dt);
@@ -184,7 +189,7 @@ void MainLoop::run()
                 if (STKHost::get()->requestedShutdown())
                     STKHost::get()->shutdown();
                 else
-                    ProtocolManager::getInstance()->update();
+                    ProtocolManager::getInstance()->update(dt);
             }
             PROFILER_POP_CPU_MARKER();
 
@@ -196,7 +201,7 @@ void MainLoop::run()
         {
             PROFILER_PUSH_CPU_MARKER("Protocol manager update", 0x7F, 0x00, 0x7F);
             if(NetworkConfig::get()->isNetworking())
-                ProtocolManager::getInstance()->update();
+                ProtocolManager::getInstance()->update(dt);
             PROFILER_POP_CPU_MARKER();
 
             PROFILER_PUSH_CPU_MARKER("Database polling update", 0x00, 0x7F, 0x7F);
